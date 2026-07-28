@@ -1,0 +1,49 @@
+## .NET
+bin/
+obj/
+[Bb]uild/
+[Ll]og/
+[Ll]ogs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+*.rsuser
+project.lock.json
+project.fragment.lock.json
+artifacts/
+
+## IDE / OS
+.vs/
+.vscode/
+.idea/
+*.swp
+*~
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+## Local secrets & machine-specific config
+*.db
+*.db-lock
+.env
+.env.*
+!.env.example
+appsettings.*.local.json
+secrets.json
+local.settings.json
+
+## Build / test / coverage
+[Tt]est[Rr]esult*/
+[Bb]uild[Ll]og.*
+*.nupkg
+*.snupkg
+TestResults/
+coverage*
+*.coverage
+*.coveragexml
+
+## Temporary
+*.tmp
+*.temp
+*.log
