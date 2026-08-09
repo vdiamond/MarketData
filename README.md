@@ -1,8 +1,8 @@
 # MarketData
 
-.NET market-data **ingestion and extract** pipeline. It downloads data from external market APIs (currently [EODHD](https://eodhd.com/)), stores it in a local LiteDB document database, and builds date-keyed tabular extracts as CSV for research and prediction workflows.
+.NET market-data **ingestion, extract, and feature-transform** pipelines. It downloads data from external market APIs (currently [EODHD](https://eodhd.com/)), stores it in a local LiteDB document database, builds date-keyed tabular extracts as CSV, then applies technical-analysis feature transforms for research and prediction workflows.
 
-This is a **console ETL / download application**, not a long-running web service.
+This is a set of **console ETL applications**, not a long-running web service.
 
 ## What it does
 
@@ -10,11 +10,12 @@ This is a **console ETL / download application**, not a long-running web service
 2. Deserializes responses into shared domain models (`MarketApi`).
 3. Upserts documents into **LiteDB** collections (exchange symbols, fundamentals, EOD prices, sentiment).
 4. Builds **date-keyed wide tables** (via DynamicTable) and writes **CSV** extracts.
+5. Runs **feature transforms** (`eodhd_transform`) on extract CSVs using DynamicTable + TALib.
 
 Typical pipeline flow:
 
 ```
-EODHD API → RestClient → EodNetApi.Client → MarketApi models → LiteDB → CSV extracts
+EODHD API → RestClient → EodNetApi.Client → MarketApi models → LiteDB → CSV extracts → eodhd_transform → feature CSV
 ```
 
 ## Repository layout
@@ -28,6 +29,9 @@ MarketData/
 │   ├── Model.cs          # Core entities
 │   ├── Fundamental*.cs   # Stock / ETF / index fundamentals DTOs
 │   └── ExtractUtil.cs    # Date spine + fill-forward helpers
+├── eodhd_transform/      # Feature-engineering console (extract CSV → TA features)
+│   └── Program.cs        # Load CSV, compute indicators, write feature CSV
+├── scripts/              # Secret-loading templates (local file gitignored)
 └── .grok/rules/          # Coding standards and architecture notes
 ```
 
@@ -37,15 +41,17 @@ MarketData/
 |---------|------|
 | **RestClient** | Generic REST GET client, query parameters, optional JSON deserialize, WebSocket helper |
 | **eodhd_download** | EODHD adapter, LiteDB load stages, CSV extract stages |
+| **eodhd_transform** | File-to-file TA / feature transform on extract CSVs (no LiteDB or API) |
 
-### External dependency
+### External dependencies
 
-The solution references sibling **DynamicTable** projects (`Table`, `TableCsv`, `TableExtension`) for tabular extract/CSV. Clone those next to this repository so project references resolve:
+Project references point at sibling repos. Clone them next to this repository so references resolve:
 
 ```
 source_code/
-├── MarketData/          # this repo
-└── DynamicTable/        # external sibling
+├── MarketData/            # this repo
+├── DynamicTable/          # Table, TableCsv, TableExtension
+└── TechnicalIndicators/   # TALib (used by eodhd_transform)
 ```
 
 ## Requirements
@@ -56,14 +62,43 @@ source_code/
 
 ## Configuration
 
-Do **not** hard-code API keys in source.
+Do **not** hard-code API keys in source. Secrets are loaded via a **local, gitignored** PowerShell script.
 
 | Variable | Purpose | Default |
 |----------|---------|---------|
 | `EODHD_API_TOKEN` | EODHD API key (**required**) | — |
 | `MARKETDATA_DB_PATH` | Path to the LiteDB database file | `D:\LiteDb\EodHd.db` |
 
-PowerShell example:
+### Local secrets script (recommended)
+
+1. Copy the tracked template to a local file (already gitignored):
+
+```powershell
+Copy-Item .\scripts\set-secrets.example.ps1 .\scripts\set-secrets.local.ps1
+```
+
+2. Edit `scripts\set-secrets.local.ps1` and set your real token (and optional DB path).
+
+3. **Dot-source** the local script so variables apply to the current session (note the leading `.`):
+
+```powershell
+. .\scripts\set-secrets.local.ps1
+```
+
+4. Run the app from that same PowerShell window:
+
+```powershell
+dotnet run --project eodhd_download/eodhd_download.csproj
+```
+
+| File | In git? | Purpose |
+|------|---------|---------|
+| `scripts/set-secrets.example.ps1` | Yes | Template with placeholders only |
+| `scripts/set-secrets.local.ps1` | **No** (gitignored) | Your real secrets for this machine |
+
+`set-secrets.local.ps1` only affects the current PowerShell session. Open a new terminal → load secrets again.
+
+### Manual (one-off) session values
 
 ```powershell
 $env:EODHD_API_TOKEN = "your-token-here"
@@ -76,6 +111,7 @@ From the repository root (with DynamicTable available as a sibling):
 
 ```bash
 dotnet build eodhd_download/eodhd_download.slnx
+dotnet build eodhd_transform/eodhd_transform.slnx
 ```
 
 Or build individual projects:
@@ -83,16 +119,21 @@ Or build individual projects:
 ```bash
 dotnet build RestClient/RestClient.csproj
 dotnet build eodhd_download/eodhd_download.csproj
+dotnet build eodhd_transform/eodhd_transform.csproj
 ```
 
 ## Run
 
-```bash
-# Set token first (see Configuration)
+```powershell
+# From repo root — load secrets, then run download / extract
+. .\scripts\set-secrets.local.ps1
 dotnet run --project eodhd_download/eodhd_download.csproj
+
+# Feature transform (after extract CSV exists; paths currently hard-coded in Program)
+dotnet run --project eodhd_transform/eodhd_transform.csproj
 ```
 
-Pipeline stages in `Program.Main` are controlled by boolean feature flags (lookup symbols, fundamentals, prices, sentiment, extracts). Toggle those flags for iterative downloads.
+Pipeline stages in `eodhd_download` `Program.Main` are controlled by boolean feature flags (lookup symbols, fundamentals, prices, sentiment, extracts). Toggle those flags for iterative downloads.
 
 ## Data model highlights
 
@@ -116,7 +157,8 @@ Pipeline stages in `Program.Main` are controlled by boolean feature flags (looku
 - **RestClient** stays provider-agnostic (no EODHD URLs or domain types).
 - **EodNetApi.Client** owns vendor endpoints and mapping into `MarketApi`.
 - **MarketApi** models are the shared contract for API, storage, and extract.
-- Orchestration stays in the console app; ingest uses transactional upserts.
+- Orchestration stays in the download console app; ingest uses transactional upserts.
+- **eodhd_transform** consumes extract CSV only — no LiteDB, RestClient, or MarketApi dependency.
 
 More detail: `.grok/rules/ARCHITECTURE.md`.
 

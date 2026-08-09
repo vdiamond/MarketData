@@ -33,6 +33,10 @@ appsettings.*.local.json
 secrets.json
 local.settings.json
 
+# Local secret loader (copy from scripts/set-secrets.example.ps1 — never commit real keys)
+scripts/set-secrets.local.ps1
+*.local.ps1
+
 ## Build / test / coverage
 [Tt]est[Rr]esult*/
 [Bb]uild[Ll]og.*

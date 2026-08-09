@@ -13,21 +13,23 @@ Read this file together with `AGENTS.md` and `coding-standards.md` before changi
 
 ## 1. Solution Overview
 
-MarketData is a **.NET market-data ingestion and extract** system. It:
+MarketData is a **.NET market-data ingestion, extract, and feature-transform** system. It:
 
 1. Calls external market data APIs (currently **EODHD**).
 2. Deserializes responses into **domain models**.
 3. Persists them in a local **LiteDB** document store.
-4. Builds **date-keyed tabular extracts** (via DynamicTable) and writes **CSV** outputs for downstream use (e.g. prediction / research).
+4. Builds **date-keyed tabular extracts** (via DynamicTable) and writes **CSV** outputs.
+5. Applies **technical-analysis feature transforms** on extract CSVs for prediction / research.
 
-It is primarily a **console ETL / download pipeline**, not a long-running web service.
+It is primarily a set of **console ETL pipelines**, not a long-running web service. Ingest/extract and feature transform are separate apps that share CSV as the hand-off contract.
 
 | Concern | Technology |
 |---------|------------|
 | Language / runtime | C#; all solution projects target **net10.0** |
 | HTTP / WebSocket | Custom `RestClient` library (BCL `HttpClient` / `ClientWebSocket`) |
-| Local persistence | **LiteDB** |
+| Local persistence | **LiteDB** (ingest only) |
 | Tabular extract / CSV | External **DynamicTable** projects (`Table`, `TableCsv`, `TableExtension`) |
+| Technical indicators | External **TechnicalIndicators** / `TALib` (transform only) |
 | Nullable | Enabled |
 
 ---
@@ -37,33 +39,53 @@ It is primarily a **console ETL / download pipeline**, not a long-running web se
 ```
 MarketData/
 ├── .grok/rules/                 # Agent & project standards (this file, AGENTS, coding standards)
+├── scripts/                     # Local secret-loading templates (example only; local file gitignored)
 ├── RestClient/                  # Provider-agnostic HTTP + WebSocket client library
 │   ├── RestClientApi.cs
 │   └── RestClientSocket.cs
-└── eodhd_download/              # EODHD download console app + domain models + orchestration
-    ├── eodhd_download.slnx      # Solution file
-    ├── Program.cs               # Pipeline orchestration (load / extract / export)
-    ├── Client.cs                # EODHD API adapter (namespace EodNetApi)
-    ├── Model.cs                 # Core MarketApi entities (exchange, symbol, prices, sentiment)
-    ├── FundamentalStock.cs      # Stock fundamentals DTOs
-    ├── FundamentalEtf.cs        # ETF fundamentals DTOs
-    ├── FundamentalIndex.cs      # Index fundamentals DTOs
-    └── ExtractUtil.cs           # Date-range table helpers, fill-forward
+├── eodhd_download/              # EODHD download console app + domain models + orchestration
+│   ├── eodhd_download.slnx      # Ingest/extract solution
+│   ├── Program.cs               # Pipeline orchestration (load / extract / export)
+│   ├── Client.cs                # EODHD API adapter (namespace EodNetApi)
+│   ├── Model.cs                 # Core MarketApi entities (exchange, symbol, prices, sentiment)
+│   ├── FundamentalStock.cs      # Stock fundamentals DTOs
+│   ├── FundamentalEtf.cs        # ETF fundamentals DTOs
+│   ├── FundamentalIndex.cs      # Index fundamentals DTOs
+│   └── ExtractUtil.cs           # Date-range table helpers, fill-forward
+└── eodhd_transform/             # Feature-engineering console app (CSV → TA features → CSV)
+    ├── eodhd_transform.slnx     # Transform solution
+    ├── eodhd_transform.csproj
+    └── Program.cs               # Load extract CSV, compute indicators, write feature CSV
 ```
 
 **External project references** (sibling repos, not under this workspace root):
 
-- `DynamicTable/Table`
-- `DynamicTable/TableCsv`
-- `DynamicTable/TableExtension`
+| Sibling | Used by | Projects |
+|---------|---------|----------|
+| `DynamicTable` | `eodhd_download`, `eodhd_transform` | `Table`, `TableCsv`, `TableExtension` |
+| `TechnicalIndicators` | `eodhd_transform` only | `TALib` |
 
-Solution file: `eodhd_download/eodhd_download.slnx` includes RestClient, eodhd_download, and the DynamicTable projects.
+**Solution files** (separate apps; not a single monorepo solution):
+
+| Solution | Projects |
+|----------|----------|
+| `eodhd_download/eodhd_download.slnx` | RestClient, eodhd_download, DynamicTable |
+| `eodhd_transform/eodhd_transform.slnx` | eodhd_transform, DynamicTable, TALib |
+
+Expected sibling layout:
+
+```
+source_code/
+├── MarketData/            # this repo
+├── DynamicTable/          # tabular extract / CSV
+└── TechnicalIndicators/   # TALib technical indicators
+```
 
 ---
 
 ## 3. Logical Layers & Namespaces
 
-Keep these boundaries clear. Dependencies should point **inward** toward domain models and **outward** only for I/O.
+Keep these boundaries clear. Dependencies should point **inward** toward domain models and **outward** only for I/O. Transform is a **downstream consumer of extract CSV**; it does not depend on LiteDB, RestClient, or MarketApi models.
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -79,16 +101,16 @@ Keep these boundaries clear. Dependencies should point **inward** toward domain 
 │  .Client        │  │  collections    │  │  ExtractUtil, CSV    │
 └────────┬────────┘  └────────▲────────┘  └──────────▲──────────┘
          │                    │                      │
-         │           ┌────────┴────────┐             │
-         └──────────►│  MarketApi      │◄────────────┘
-                     │  domain models  │
-                     └────────▲────────┘
-                              │ maps JSON / BSON
-         ┌────────────────────┴────────────────────┐
-         │  Infrastructure: RestClient              │
-         │  RestClientApi, QueryParameters,         │
-         │  ApiResponse, RestClientSocket           │
-         └─────────────────────────────────────────┘
+         │           ┌────────┴────────┐             │ CSV hand-off
+         └──────────►│  MarketApi      │◄────────────┘      │
+                     │  domain models  │                     │
+                     └────────▲────────┘                     ▼
+                              │ maps JSON / BSON   ┌─────────────────────────┐
+         ┌────────────────────┴────────────────┐   │  Feature transform       │
+         │  Infrastructure: RestClient          │   │  eodhd_transform / TaCli │
+         │  RestClientApi, QueryParameters,     │   │  DynamicTable + TALib    │
+         │  ApiResponse, RestClientSocket       │   │  feature CSV output      │
+         └──────────────────────────────────────┘   └─────────────────────────┘
 ```
 
 | Namespace / area | Responsibility | Depends on |
@@ -97,6 +119,7 @@ Keep these boundaries clear. Dependencies should point **inward** toward domain 
 | **`EodNetApi`** | EODHD-specific endpoints, API key defaults, response shaping into `MarketApi` types | `RestClient`, `MarketApi` |
 | **`MarketApi`** | Domain / DTO models shared by API, LiteDB, and extracts | LiteDB attributes, `System.Text.Json` |
 | **`eodhd_download`** | Pipeline orchestration, load helpers, date-keyed extract builders, CSV export | All of the above + DynamicTable |
+| **`TaCli` / `eodhd_transform`** | Load extract CSV, compute technical indicators / normalized features, write feature CSV | DynamicTable, TALib only |
 
 ### Layer rules
 
@@ -105,12 +128,13 @@ Keep these boundaries clear. Dependencies should point **inward** toward domain 
 3. **`MarketApi` models are the shared contract** between download, storage, and extract. Prefer evolving models carefully; they are dual-purpose (JSON + LiteDB).
 4. **Orchestration stays in the app project** (`Program` load/extract methods). Do not push pipeline policy into `RestClient`.
 5. **Do not reverse dependencies** (e.g. RestClient must not reference LiteDB or MarketApi).
+6. **`eodhd_transform` must not take a dependency on LiteDB, RestClient, EodNetApi, or MarketApi.** It consumes extract CSV and external TA/table libraries only. Keep the CSV column contract between download extract and transform explicit and stable.
 
 ---
 
 ## 4. End-to-End Data Flow
 
-Typical pipeline stages (controlled by boolean flags in `Main`):
+Typical pipeline stages (ingest controlled by boolean flags in `eodhd_download` `Main`; transform is a separate console run):
 
 ```
 EODHD HTTPS API
@@ -133,10 +157,16 @@ LiteDB (upsert in transactions; composite string IDs)
 DynamicTable extract (date spine + left-join series per symbol)
       │
       ▼
-Fill-forward missing doubles → CSV files
+Fill-forward missing doubles → extract CSV files
+      │
+      ▼
+eodhd_transform (load CSV → TALib / series transforms → feature CSV)
+      │
+      ▼
+Prediction / research consumers
 ```
 
-### Load stages (ingest)
+### Load stages (ingest) — `eodhd_download`
 
 | Stage | Source API (conceptual) | LiteDB collection | Model |
 |-------|-------------------------|-------------------|--------|
@@ -147,7 +177,7 @@ Fill-forward missing doubles → CSV files
 | EOD historical prices | eod | `historical_day_prices` | `HistoricalStockPrice` |
 | Sentiment | sentiments | `sentiments_data` | `SentimentsData` |
 
-### Extract stages (export)
+### Extract stages (export) — `eodhd_download`
 
 | Output (example paths in current app) | Content |
 |---------------------------------------|---------|
@@ -156,6 +186,21 @@ Fill-forward missing doubles → CSV files
 | Index membership CSV | Components of a given index (e.g. GSPC) |
 
 Paths and feature flags in `Main` are **environment-specific**; treat them as configuration that should eventually be externalized rather than hard-coded forever.
+
+### Transform stages (feature engineering) — `eodhd_transform`
+
+`eodhd_transform` is a **file-to-file** console app (namespace `TaCli`). It does not talk to EODHD or LiteDB.
+
+| Step | Behavior (current Program) |
+|------|----------------------------|
+| Input | Wide extract CSV (e.g. `index_extract.csv`) loaded via DynamicTable with `Date` as string and other fields as double |
+| Source series | Prefixed OHLCV / close / sentiment columns (e.g. `gspc.*`, `qqq.*`, `vix.Close`, `tnx.Close`, …) |
+| Feature compute | Multi-horizon momentum (`mom`), normalize + EMA + sigmoid centering, MACD family, Wilder ATR momentum, annualized volatility windows, series offsets |
+| Warm-up trim | Drop initial rows that lack full indicator history (currently first 260 rows) |
+| Column selection | `TrimToInclude` keeps a curated feature set (today: `Date`, OHLCV-style targets, volatility/interest/dividend; feature columns evolve with the script) |
+| Output | Feature CSV (e.g. `index_extract_ta.csv`) for downstream models |
+
+**Contract note:** Transform depends on **column names and shapes** produced by the download extract. Renaming extract prefixes or dropping series can break transform without a compile-time error—treat extract column changes as a cross-app contract change.
 
 ---
 
@@ -242,7 +287,19 @@ Load helpers in `Program` follow a consistent shape:
 
 ### 6.7 Feature-flagged pipeline
 
-`Main` uses boolean switches to enable/disable stages (lookup, fundamentals, prices, sentiment, extracts). Useful for iterative runs; when hardening the app, replace with CLI args or config without scattering stage logic.
+`eodhd_download` `Main` uses boolean switches to enable/disable stages (lookup, fundamentals, prices, sentiment, extracts). Useful for iterative runs; when hardening the app, replace with CLI args or config without scattering stage logic.
+
+### 6.8 CSV feature transform (`eodhd_transform`)
+
+`eodhd_transform` applies a script-style transform pipeline:
+
+1. Load extract CSV into `IDynamicTable` with typed field attributes.
+2. Bind source series via column names (`AsList<double>(...)`).
+3. Allocate target feature columns (`NewColumAsList<double>`).
+4. Chain TALib / series operations (momentum, normalize, EMA, MACD, ATR, volatility, offset).
+5. Trim warm-up rows and optional column set; write feature CSV.
+
+**When extending:** keep transforms pure functions of input series where possible; prefer named, stable output columns; externalize input/output paths rather than hard-coding machine paths; do not pull LiteDB or API clients into this project.
 
 ---
 
@@ -258,6 +315,8 @@ These principles govern design decisions. When they conflict with short-term con
 | Keep vendor mapping in a provider client | Scatter URL fragments across `Program` |
 | Keep models in `MarketApi` | Duplicate near-identical DTOs per layer without reason |
 | Keep orchestration in the app | Hide multi-stage ETL policy inside library types |
+| Keep feature engineering in `eodhd_transform` | Re-download or re-query LiteDB inside transform |
+| Pass data download → extract CSV → transform CSV | Couple transform to MarketApi or RestClient |
 
 ### 7.2 Single shared domain contract
 
@@ -291,8 +350,9 @@ These principles govern design decisions. When they conflict with short-term con
 ### 7.7 Minimal dependencies
 
 - Do **not** add NuGet packages unless explicitly requested or already approved.
-- Stick to BCL, existing Microsoft.Extensions usage (if introduced later), LiteDB (already used), and established DynamicTable references.
+- Stick to BCL, existing Microsoft.Extensions usage (if introduced later), LiteDB (already used in download), established DynamicTable references, and TechnicalIndicators/TALib for transform.
 - `RestClient` should remain dependency-free beyond the BCL.
+- `eodhd_transform` should stay free of LiteDB and network clients.
 
 ### 7.8 Hybrid vertical slice / clean architecture
 
@@ -304,8 +364,9 @@ For larger features:
 
 ### 7.9 Configuration and secrets
 
-- **Do not commit real API tokens or machine-specific absolute paths as the long-term design.** Current hard-coded values in `Main` are a known smell; new work should move toward environment variables, user secrets, or config files outside source control.
-- Database path, extract output paths, and date ranges should be configurable when you next touch that area.
+- **Do not commit real API tokens or machine-specific absolute paths as the long-term design.** Current hard-coded values in download/transform `Main` are a known smell; new work should move toward environment variables, user secrets, or config files outside source control.
+- Database path, extract/transform I/O paths, and date ranges should be configurable when you next touch that area.
+- Local secret loading for download uses `scripts/set-secrets.example.ps1` → gitignored `set-secrets.local.ps1` (`EODHD_API_TOKEN`, optional `MARKETDATA_DB_PATH`).
 
 ### 7.10 Observability
 
@@ -318,9 +379,10 @@ For larger features:
 |------|----------|
 | New EODHD endpoint | Add method on `EodNetApi.Client`; add/extend `MarketApi` models; add load stage; optionally extract |
 | New data provider | New adapter project/namespace (mirror `EodNetApi`); reuse `RestClient` and `MarketApi` where shapes align |
-| New extract shape | Prefer `DateKeyedTableBuilder` / DynamicTable; avoid ad-hoc CSV string building |
+| New extract shape | Prefer `DateKeyedTableBuilder` / DynamicTable; avoid ad-hoc CSV string building; update transform if column contract changes |
+| New TA feature / label | Extend `eodhd_transform` series bindings and TALib chains; keep warm-up trim consistent with longest lookback |
 | Streaming data | Use / extend `RestClientSocket` + provider adapter; persist via same collections/models when possible |
-| Tests | Prefer testing pure extract helpers and mapping logic; mock HTTP at `RestClient` or adapter boundary without new frameworks unless approved |
+| Tests | Prefer testing pure extract helpers, mapping logic, and pure series transforms; mock HTTP at `RestClient` or adapter boundary without new frameworks unless approved |
 
 ---
 
@@ -359,12 +421,14 @@ Architecture decisions in this file take precedence for **structure and boundari
 
 These are factual characteristics of the current codebase; use them to plan improvements carefully:
 
-1. **Orchestration is concentrated in `Program.cs`** — large surface; extract new types when a stage grows (loaders, extract writers) without changing layer rules.
-2. **Target framework** — all projects (including `RestClient` and DynamicTable libraries) target **net10.0**.
-3. **Secrets and paths** — hard-coded API token and `D:\...` paths exist; treat removal as a priority when editing `Main`.
-4. **Blocking waits** — some pipeline stages use `.Wait()`; prefer full async main path when refactoring.
-5. **DynamicTable is external** — coordinate contract changes with the DynamicTable repositories.
-6. **No automated test project yet** — when adding tests, place them in a dedicated test project and keep them free of live API keys.
+1. **Orchestration is concentrated in `Program.cs`** — large surface in both `eodhd_download` and `eodhd_transform`; extract new types when a stage grows (loaders, extract writers, feature builders) without changing layer rules.
+2. **Target framework** — all projects (including `RestClient`, DynamicTable, and TALib references) target **net10.0**.
+3. **Secrets and paths** — hard-coded API token (download) and `D:\...` paths (download + transform) exist; treat removal as a priority when editing either `Main`. Prefer env vars / scripts for secrets.
+4. **Blocking waits** — some download pipeline stages use `.Wait()`; prefer full async main path when refactoring.
+5. **External siblings** — DynamicTable and TechnicalIndicators live outside this repo; coordinate contract changes with those repositories.
+6. **Two solution files** — download and transform are separate apps/solutions sharing CSV convention, not project references between them.
+7. **Transform is script-like** — much of `eodhd_transform` is explicit column wiring in `Main`; acceptable for research iteration, but factor helpers if feature sets grow.
+8. **No automated test project yet** — when adding tests, place them in a dedicated test project and keep them free of live API keys.
 
 ---
 
@@ -372,7 +436,7 @@ These are factual characteristics of the current codebase; use them to plan impr
 
 Use this list when reviewing your own or others' changes:
 
-- [ ] Does the change respect layer boundaries (RestClient / provider / MarketApi / orchestration)?
+- [ ] Does the change respect layer boundaries (RestClient / provider / MarketApi / download orchestration / transform)?
 - [ ] Are new models dual-purpose ready (JSON names, BSON id, extract impact)?
 - [ ] Are identities and date formats consistent with existing composite keys?
 - [ ] Are LiteDB writes transactional and idempotent (upsert)?
@@ -380,9 +444,11 @@ Use this list when reviewing your own or others' changes:
 - [ ] Were no unauthorized NuGet packages introduced?
 - [ ] Would a new engineer find the feature by following an existing stage pattern?
 - [ ] Were secrets or machine-specific paths avoided (or clearly temporary and not expanded)?
+- [ ] If extract CSV columns changed, was `eodhd_transform` (or its contract docs) updated?
+- [ ] Does transform remain free of LiteDB / RestClient / MarketApi dependencies?
 
 ---
 
-**Last Updated:** July 2026  
-**Version:** 1.0
+**Last Updated:** August 2026  
+**Version:** 1.1
 )
