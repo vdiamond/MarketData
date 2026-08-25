@@ -11,11 +11,12 @@ This is a set of **console ETL applications**, not a long-running web service.
 3. Upserts documents into **LiteDB** collections (exchange symbols, fundamentals, EOD prices, sentiment).
 4. Builds **date-keyed wide tables** (via DynamicTable) and writes **CSV** extracts.
 5. Runs **feature transforms** (`eodhd_transform`) on extract CSVs using DynamicTable + TALib.
+6. Reports **grouped statistics** (`eodhd_statistics`) on the transform feature CSV.
 
 Typical pipeline flow:
 
 ```
-EODHD API → RestClient → EodNetApi.Client → MarketApi models → LiteDB → CSV extracts → eodhd_transform → feature CSV
+EODHD API → RestClient → EodNetApi.Client → MarketApi models → LiteDB → CSV extracts → eodhd_transform → feature CSV → eodhd_statistics
 ```
 
 ## Repository layout
@@ -31,6 +32,8 @@ MarketData/
 │   └── ExtractUtil.cs    # Date spine + fill-forward helpers
 ├── eodhd_transform/      # Feature-engineering console (extract CSV → TA features)
 │   └── Program.cs        # Load CSV, compute indicators, write feature CSV
+├── eodhd_statistics/     # Grouped statistics console (feature CSV → report)
+│   └── Program.cs        # Load feature CSV, group rows, print statistics
 ├── scripts/              # Secret-loading templates (local file gitignored)
 └── .grok/rules/          # Coding standards and architecture notes
 ```
@@ -42,6 +45,7 @@ MarketData/
 | **RestClient** | Generic REST GET client, query parameters, optional JSON deserialize, WebSocket helper |
 | **eodhd_download** | EODHD adapter, LiteDB load stages, CSV extract stages |
 | **eodhd_transform** | File-to-file TA / feature transform on extract CSVs (no LiteDB or API) |
+| **eodhd_statistics** | Grouped statistics on transform feature CSVs (no LiteDB, API, or TALib) |
 
 ### External dependencies
 
@@ -68,6 +72,7 @@ Do **not** hard-code API keys in source. Secrets are loaded via a **local, gitig
 |----------|---------|---------|
 | `EODHD_API_TOKEN` | EODHD API key (**required**) | — |
 | `MARKETDATA_DB_PATH` | Path to the LiteDB database file | `D:\LiteDb\EodHd.db` |
+| `MARKETDATA_TRANSFORM_CSV` | Path to the transform feature CSV used by `eodhd_statistics` | `d:\predict\index_extract_ta.csv` |
 
 ### Local secrets script (recommended)
 
@@ -112,6 +117,7 @@ From the repository root (with DynamicTable available as a sibling):
 ```bash
 dotnet build eodhd_download/eodhd_download.slnx
 dotnet build eodhd_transform/eodhd_transform.slnx
+dotnet build eodhd_statistics/eodhd_statistics.slnx
 ```
 
 Or build individual projects:
@@ -120,6 +126,7 @@ Or build individual projects:
 dotnet build RestClient/RestClient.csproj
 dotnet build eodhd_download/eodhd_download.csproj
 dotnet build eodhd_transform/eodhd_transform.csproj
+dotnet build eodhd_statistics/eodhd_statistics.csproj
 ```
 
 ## Run
@@ -131,6 +138,10 @@ dotnet run --project eodhd_download/eodhd_download.csproj
 
 # Feature transform (after extract CSV exists; paths currently hard-coded in Program)
 dotnet run --project eodhd_transform/eodhd_transform.csproj
+
+# Grouped statistics (after transform CSV exists)
+dotnet run --project eodhd_statistics/eodhd_statistics.csproj
+# or: dotnet run --project eodhd_statistics/eodhd_statistics.csproj -- "D:\predict\index_extract_ta.csv"
 ```
 
 Pipeline stages in `eodhd_download` `Program.Main` are controlled by boolean feature flags (lookup symbols, fundamentals, prices, sentiment, extracts). Toggle those flags for iterative downloads.
@@ -159,6 +170,7 @@ Pipeline stages in `eodhd_download` `Program.Main` are controlled by boolean fea
 - **MarketApi** models are the shared contract for API, storage, and extract.
 - Orchestration stays in the download console app; ingest uses transactional upserts.
 - **eodhd_transform** consumes extract CSV only — no LiteDB, RestClient, or MarketApi dependency.
+- **eodhd_statistics** consumes transform feature CSV only — no LiteDB, RestClient, MarketApi, or TALib dependency.
 
 More detail: `.grok/rules/ARCHITECTURE.md`.
 

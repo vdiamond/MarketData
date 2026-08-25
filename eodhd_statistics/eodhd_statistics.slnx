@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="../../DynamicTable/Table/Table/Table.csproj" />
+  <Project Path="../../DynamicTable/TableCsv/TableCsv/TableCsv.csproj" />
+  <Project Path="../../DynamicTable/TableExtension/TableExtension/TableExtension.csproj" />
+  <Project Path="eodhd_statistics.csproj" />
+</Solution>
