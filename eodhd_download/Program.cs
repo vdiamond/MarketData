@@ -362,6 +362,60 @@ namespace eodhd_download
                 return;
             }
 
+            var loadPricesOnly = ParseLoadPricesArg(args);
+            if (loadPricesOnly != null)
+            {
+                var apiTokenPrices = RequireApiToken();
+                using var dbPrices = new LiteDatabase(dbPath);
+                var eodHdPrices = new EodNetApi.Client(apiTokenPrices);
+                var symbols = new List<string>(loadPricesOnly);
+                Console.WriteLine($"Loading prices only for {symbols.Count} symbol(s): {string.Join(", ", symbols)}");
+                var affected = await LoadEndOfDayHistoricalStockPrice(
+                    dbPrices, eodHdPrices, DateTime.Now.AddDays(-10000), DateTime.Now, symbols);
+                Console.WriteLine($"Price load complete. Rows upserted: {affected}");
+                return;
+            }
+
+            if (HasFlag(args, "--join-vix-terms"))
+            {
+                using var dbJoin = new LiteDatabase(dbPath);
+                var hspColl = dbJoin.GetCollection<MarketApi.HistoricalStockPrice>("historical_day_prices");
+                var vixTerms = new List<string> { "VIX1Y.INDX", "VIX6M.INDX" };
+                var rows = ExtractJoin.JoinHistoricalPricesOntoExtract(
+                    hspColl, extractCsv, vixTerms, DateTime.Now.AddDays(-10000));
+                Console.WriteLine($"Joined VIX1Y/VIX6M onto {extractCsv}; rows={rows}");
+                return;
+            }
+
+            if (HasFlag(args, "--load-macro"))
+            {
+                var apiTokenMacro = RequireApiToken();
+                var sidecarCsv = EnvOrDefault("MARKETDATA_MACRO_CSV", @"D:\predict\us_macro_indicators.csv");
+                var seriesDir = EnvOrDefault("MARKETDATA_MACRO_DIR", @"D:\predict\macro");
+                var eodHdMacro = new EodNetApi.Client(apiTokenMacro, timeout: 60000);
+                Console.WriteLine("Fetching USA macro indicators (alpha-3 USA).");
+                var fetch = await MacroIndicators.FetchUsaAsync(eodHdMacro);
+                if (fetch.Forbidden)
+                {
+                    Console.WriteLine(fetch.StatusNote);
+                    Console.WriteLine($"Forbidden on key={fetch.ForbiddenKey}. Skipping extract macro columns.");
+                    return;
+                }
+                MacroIndicators.WriteSidecarAndSeries(fetch, sidecarCsv, seriesDir);
+                Console.WriteLine($"Wrote sidecar {sidecarCsv} and {fetch.Series.Count} series under {seriesDir}");
+                foreach (var missing in fetch.MissingKeys)
+                {
+                    Console.WriteLine($"Indicator not found (404): {missing}");
+                }
+                foreach (var empty in fetch.EmptyKeys)
+                {
+                    Console.WriteLine($"Indicator returned empty: {empty}");
+                }
+                var join = MacroIndicators.JoinOntoExtract(extractCsv, fetch);
+                Console.WriteLine($"Joined macro columns [{string.Join(", ", join.ColumnsAdded)}] onto {extractCsv}; rows={join.DataRows}");
+                return;
+            }
+
             var db = new LiteDatabase(dbPath);
 
             var apiToken = Environment.GetEnvironmentVariable("EODHD_API_TOKEN");
@@ -422,6 +476,8 @@ namespace eodhd_download
                 "VVIX.INDX",
                 "VIX3M.INDX",
                 "VIX9D.INDX",
+                "VIX1Y.INDX",
+                "VIX6M.INDX",
                 "MAHN.INDX",
                 "MALN.INDX",
                 "TRIN.INDX",
@@ -511,6 +567,56 @@ namespace eodhd_download
                 return fallback;
             }
             return value;
+        }
+
+        static string RequireApiToken()
+        {
+            var apiToken = Environment.GetEnvironmentVariable("EODHD_API_TOKEN");
+            if (string.IsNullOrWhiteSpace(apiToken))
+            {
+                throw new InvalidOperationException(
+                    "EODHD API token is not set. Set the EODHD_API_TOKEN environment variable before running.");
+            }
+            return apiToken;
+        }
+
+        static bool HasFlag(string[] args, string flag)
+        {
+            return args.Any(a => string.Equals(a, flag, StringComparison.OrdinalIgnoreCase));
+        }
+
+        static List<string>? ParseLoadPricesArg(string[] args)
+        {
+            for (int i = 0; i < args.Length; i++)
+            {
+                var arg = args[i];
+                string? value = null;
+                if (arg.StartsWith("--load-prices=", StringComparison.OrdinalIgnoreCase))
+                {
+                    value = arg["--load-prices=".Length..];
+                }
+                else if (string.Equals(arg, "--load-prices", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (i + 1 >= args.Length)
+                    {
+                        throw new InvalidOperationException("--load-prices requires a comma-separated symbol list.");
+                    }
+                    value = args[i + 1];
+                }
+                if (value == null)
+                {
+                    continue;
+                }
+                var symbols = value
+                    .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                    .ToList();
+                if (symbols.Count == 0)
+                {
+                    throw new InvalidOperationException("--load-prices requires at least one symbol.");
+                }
+                return symbols;
+            }
+            return null;
         }
     }
 }

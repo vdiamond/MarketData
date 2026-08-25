@@ -1,4 +1,5 @@
 ﻿using RestClient;
+using System.Net;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -212,6 +213,45 @@ namespace EodNetApi
             return ret;
         }
 
+        public async Task<List<MarketApi.MacroIndicator>> GetMacroIndicatorAsync(string country, string indicator, CancellationToken ct = default)
+        {
+            ArgumentException.ThrowIfNullOrWhiteSpace(country);
+            ArgumentException.ThrowIfNullOrWhiteSpace(indicator);
+            _restClient.QueryParameters.Add("indicator", indicator);
+            var apiResponse = await _restClient.CallApi<string>($@"{_get_macro_indicator}/{country}", ct, false);
+            if (apiResponse.HttpStatusCode == HttpStatusCode.Forbidden)
+            {
+                throw new HttpRequestException(
+                    $"Macro Indicators API returned HTTP 403 Forbidden (plan does not include this endpoint). {apiResponse.Content}",
+                    inner: null,
+                    statusCode: apiResponse.HttpStatusCode);
+            }
+            if (apiResponse.HttpStatusCode == HttpStatusCode.Unauthorized)
+            {
+                throw new HttpRequestException(
+                    "Macro Indicators API returned HTTP 401 Unauthorized (bad token).",
+                    inner: null,
+                    statusCode: apiResponse.HttpStatusCode);
+            }
+            if (!apiResponse.Ok)
+            {
+                throw new HttpRequestException(
+                    $"{apiResponse.ErrorMessage}/{apiResponse.Content}",
+                    inner: null,
+                    statusCode: apiResponse.HttpStatusCode);
+            }
+            if (string.IsNullOrWhiteSpace(apiResponse.Content) || apiResponse.Content == "[]")
+            {
+                return new List<MarketApi.MacroIndicator>();
+            }
+            var ret = JsonSerializer.Deserialize<List<MarketApi.MacroIndicator>>($"{apiResponse.Content}");
+            if (ret == null)
+            {
+                throw new Exception("Deserialization of MacroIndicator list failed, null returned");
+            }
+            return ret;
+        }
+
         public async Task<List<MarketApi.EconomicEvent>> GetEconomicEventsAsync(string country, DateOnly from, DateOnly to, int limit = 1000, int offset = 0, CancellationToken ct = default)
         {
             _restClient.QueryParameters.Add("country", country);
@@ -317,6 +357,7 @@ namespace EodNetApi
         private const string _get_user = @"user";
         private const string _get_sentiments = @"sentiments";
         private const string _get_economic_events = @"economic-events";
+        private const string _get_macro_indicator = @"macro-indicator";
         #endregion
     }
         internal class EodFormatter : IFormatter

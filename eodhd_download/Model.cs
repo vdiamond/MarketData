@@ -100,6 +100,22 @@ namespace MarketApi
 
 
 
+    public class MacroIndicator
+    {
+        [JsonPropertyName("CountryCode")]
+        public string CountryCode { get; set; }
+        [JsonPropertyName("CountryName")]
+        public string CountryName { get; set; }
+        [JsonPropertyName("Indicator")]
+        public string Indicator { get; set; }
+        [JsonPropertyName("Date")]
+        public string Date { get; set; }
+        [JsonPropertyName("Period")]
+        public string Period { get; set; }
+        [JsonPropertyName("Value")]
+        public double? Value { get; set; }
+    }
+
     public class EconomicEvent
     {
         [JsonPropertyName("type")]
