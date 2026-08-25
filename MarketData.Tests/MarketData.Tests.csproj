@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.7.1" />
+    <PackageReference Include="MSTest.TestAdapter" Version="3.1.1" />
+    <PackageReference Include="MSTest.TestFramework" Version="3.1.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\eodhd_download\eodhd_download.csproj" />
+    <ProjectReference Include="..\eodhd_transform\eodhd_transform.csproj" />
+    <ProjectReference Include="..\RestClient\RestClient.csproj" />
+    <ProjectReference Include="..\..\DynamicTable\Table\Table\Table.csproj" />
+    <ProjectReference Include="..\..\DynamicTable\TableExtension\TableExtension\TableExtension.csproj" />
+  </ItemGroup>
+
+</Project>

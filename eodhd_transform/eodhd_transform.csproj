@@ -8,6 +8,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="MarketData.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\..\DynamicTable\TableCsv\TableCsv\TableCsv.csproj" />
     <ProjectReference Include="..\..\DynamicTable\TableExtension\TableExtension\TableExtension.csproj" />
     <ProjectReference Include="..\..\DynamicTable\Table\Table\Table.csproj" />

@@ -31,12 +31,43 @@ namespace eodhd_transform
             return result;
         }
 
+        internal static readonly string[] OutputColumns =
+        [
+            "Date",
+            "qqq_open",
+            "qqq_high",
+            "qqq_low",
+            "qqq_close",
+            "qqq_vol",
+            "qqq_ema9",
+            "qqq_ema20",
+            "qqq_ema50",
+            "qqq_slope9",
+            "qqq_slope20",
+            "qqq_slope50",
+            "qqq_rsi14",
+            "qqq_adx14",
+            "qqq_volatility20",
+            "qqq_macd_hist26_12_9",
+            "qqq_macd_signal26_12_9",
+            "qqq_bollinger_width20_2",
+            "qqq_bollinger_pos20_2",
+            "qqq_support",
+            "qqq_support_strength",
+            "qqq_resistance",
+            "qqq_resistance_strength",
+            "qqq_yield",
+            "qqq_yield_la1"
+        ];
+
         static void Main(string[] args)
         {
+            var extractCsv = ResolvePath(args, 0, "MARKETDATA_EXTRACT_CSV", @"d:\predict\index_extract.csv");
+            var transformCsv = ResolvePath(args, 1, "MARKETDATA_TRANSFORM_CSV", @"d:\predict\index_extract_ta.csv");
 
             //
             // Load Csv - convert all fields to the correct types
-            var extractTable = LoadDateDoublesCsv(@"d:\predict\index_extract.csv");
+            var extractTable = LoadDateDoublesCsv(extractCsv);
 
             //
             // Source field definitions
@@ -132,8 +163,15 @@ namespace eodhd_transform
                 }
             }
 
+            var droppedHolidays = DropNyseHolidayRows(extractTable, Date);
+            Console.WriteLine($"Dropped {droppedHolidays} NYSE holiday fill rows before yield/offset");
+
             qqq.yield(1).mul(100.0, qqq_yield);
             qqq_yield.offset(-1, qqq_yield_la1);
+            if (qqq_yield_la1.Count > 0)
+            {
+                qqq_yield_la1[qqq_yield_la1.Count - 1] = double.NaN;
+            }
 
             //
             // take out initial 50 rows
@@ -141,36 +179,45 @@ namespace eodhd_transform
 
             //
             // Remove extract columns
-            extractTable.columns.TrimToInclude(
-                "Date",
-                "qqq_open",
-                "qqq_high",
-                "qqq_low",
-                "qqq_close",
-                "qqq_vol",
-                "qqq_ema9",
-                "qqq_ema20",
-                "qqq_ema50",
-                "qqq_slope9",
-                "qqq_slope20",
-                "qqq_slope50",
-                "qqq_rsi14",
-                "qqq_adx14",
-                "qqq_volatility20",
-                "qqq_macd_hist26_12_9",
-                "qqq_macd_signal26_12_9",
-                "qqq_bollinger_width20_2",
-                "qqq_bollinger_pos20_2",
-                "qqq_support",
-                "qqq_support_strength",
-                "qqq_resistance",
-                "qqq_resistance_strength",
-                "qqq_yield",
-                "qqq_yield_la1"
-            );
+            extractTable.columns.TrimToInclude(OutputColumns);
 
-            extractTable.WriteCsv(@"d:\predict\index_extract_ta.csv", CsvHeaderType.Header);
-         }
+            extractTable.WriteCsv(transformCsv, CsvHeaderType.Header);
+        }
+
+
+        static int DropNyseHolidayRows(IDynamicTable table, IList<string> dates)
+        {
+            var dropIndexes = new List<int>();
+            for (int i = 0; i < dates.Count; i++)
+            {
+                var date = DateOnly.ParseExact(dates[i], "yyyy-MM-dd", CultureInfo.InvariantCulture);
+                if (NyseCalendar.IsFullSessionHoliday(date))
+                {
+                    dropIndexes.Add(i);
+                }
+            }
+
+            for (int i = dropIndexes.Count - 1; i >= 0; i--)
+            {
+                table.rows.RemoveRows(dropIndexes[i], 1);
+            }
+
+            return dropIndexes.Count;
+        }
+
+        static string ResolvePath(string[] args, int argIndex, string envName, string fallback)
+        {
+            if (args.Length > argIndex && !string.IsNullOrWhiteSpace(args[argIndex]))
+            {
+                return args[argIndex];
+            }
+            var fromEnv = Environment.GetEnvironmentVariable(envName);
+            if (!string.IsNullOrWhiteSpace(fromEnv))
+            {
+                return fromEnv;
+            }
+            return fallback;
+        }
 
 
     }

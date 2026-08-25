@@ -99,4 +99,29 @@ namespace MarketApi
     }
 
 
+
+    public class EconomicEvent
+    {
+        [JsonPropertyName("type")]
+        public string Type { get; set; }
+        [JsonPropertyName("comparison")]
+        public string Comparison { get; set; }
+        [JsonPropertyName("period")]
+        public string Period { get; set; }
+        [JsonPropertyName("country")]
+        public string Country { get; set; }
+        [JsonPropertyName("date")]
+        public string Date { get; set; }
+        [JsonPropertyName("actual")]
+        public double? Actual { get; set; }
+        [JsonPropertyName("previous")]
+        public double? Previous { get; set; }
+        [JsonPropertyName("estimate")]
+        public double? Estimate { get; set; }
+        [JsonPropertyName("change")]
+        public double? Change { get; set; }
+        [JsonPropertyName("change_percentage")]
+        public double? ChangePercentage { get; set; }
+    }
+
 }

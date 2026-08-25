@@ -211,7 +211,31 @@ namespace EodNetApi
 
             return ret;
         }
-        
+
+        public async Task<List<MarketApi.EconomicEvent>> GetEconomicEventsAsync(string country, DateOnly from, DateOnly to, int limit = 1000, int offset = 0, CancellationToken ct = default)
+        {
+            _restClient.QueryParameters.Add("country", country);
+            _restClient.QueryParameters.Add<DateOnly>("from", from);
+            _restClient.QueryParameters.Add<DateOnly>("to", to);
+            _restClient.QueryParameters.Add("limit", limit.ToString());
+            _restClient.QueryParameters.Add("offset", offset.ToString());
+            var apiResponse = await _restClient.CallApi<string>(_get_economic_events, ct, false);
+            if (!apiResponse.Ok)
+            {
+                throw new Exception($"{apiResponse.ErrorMessage}/{apiResponse.Content}");
+            }
+            if (string.IsNullOrWhiteSpace(apiResponse.Content) || apiResponse.Content == "[]")
+            {
+                return new List<MarketApi.EconomicEvent>();
+            }
+            var ret = JsonSerializer.Deserialize<List<MarketApi.EconomicEvent>>($"{apiResponse.Content}");
+            if (ret == null)
+            {
+                throw new Exception("Deserialization of EconomicEvent list failed, null returned");
+            }
+            return ret;
+        }
+
 /*
         public async Task<BsonDocument> GetUser(CancellationToken ct = default)
         {
@@ -292,9 +316,9 @@ namespace EodNetApi
         private const string _get_earnings = @"calendar/earnings";
         private const string _get_user = @"user";
         private const string _get_sentiments = @"sentiments";
+        private const string _get_economic_events = @"economic-events";
         #endregion
     }
-    /*
         internal class EodFormatter : IFormatter
         {
             public string ToString<T>(T value, int option = 0)
@@ -312,33 +336,6 @@ namespace EodNetApi
                     if (p == Client.Order.Ascending) { return "a"; }
                     return "d";
                 }
-                if (typeof(T) == typeof(DateOnly))
-                {
-                    DateOnly p = (DateOnly)(object)value;
-                    return p.ToString("yyyy-MM-dd");
-                }
-                return value.ToString(); ;
-            }
-        }
-    */
-    
-        internal class EodFormatter : IFormatter
-        {
-            public string ToString<T>(T value, int option = 0)
-            {
-//                if (typeof(T) == typeof(Client.Period))
-//                {
-//                    Client.Period p = (Client.Period)(object)value; 
-//                    if (p == Client.Period.Day) { return "d"; }
-//                    if (p == Client.Period.Week) { return "w"; }
-//                    return "m";
-//                }
-//                if (typeof(T) == typeof(Client.Order))
-//                {
-//                    Client.Order p = (Client.Order)(object)value;
-//                    if (p == Client.Order.Ascending) { return "a"; }
-//                    return "d";
-//                }
                 if (typeof(T) == typeof(DateOnly))
                 {
                     DateOnly p = (DateOnly)(object)value;

@@ -4,4 +4,6 @@
   <Project Path="../../DynamicTable/TableExtension/TableExtension/TableExtension.csproj" />
   <Project Path="../RestClient/RestClient.csproj" />
   <Project Path="eodhd_download.csproj" />
+  <Project Path="../MarketData.Tests/MarketData.Tests.csproj" />
 </Solution>
+

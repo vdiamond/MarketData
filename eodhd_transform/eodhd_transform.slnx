@@ -4,4 +4,6 @@
   <Project Path="../../DynamicTable/TableExtension/TableExtension/TableExtension.csproj" />
   <Project Path="../../TechnicalIndicators/TALib/TALib.csproj" />
   <Project Path="eodhd_transform.csproj" />
+  <Project Path="../MarketData.Tests/MarketData.Tests.csproj" />
 </Solution>
+

@@ -1,4 +1,4 @@
-﻿using LiteDB;
+using LiteDB;
 using MarketApi;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
@@ -60,6 +60,7 @@ namespace eodhd_download
                     db.BeginTrans();
                     indicesColl.Upsert(index);
                     db.Commit();
+                    totalAffected++;
                     sw.Stop();
                     Console.WriteLine($"Committed changes for FundamentalIndex {index.ExchangeSymbolId} in {sw.ElapsedMilliseconds} ms");
                 }
@@ -91,6 +92,7 @@ namespace eodhd_download
                     db.BeginTrans();
                     etfsColl.Upsert(etf);
                     db.Commit();
+                    totalAffected++;
                     sw.Stop();
                     Console.WriteLine($"Committed changes for FundamentalEtf {etf.ExchangeSymbolId} in {sw.ElapsedMilliseconds} ms");
                 }
@@ -122,6 +124,7 @@ namespace eodhd_download
                     db.BeginTrans();
                     stocksColl.Upsert(stock);
                     db.Commit();
+                    totalAffected++;
                     sw.Stop();
                     Console.WriteLine($"Committed changes for FundamentalStock {stock.ExchangeSymbolId} in {sw.ElapsedMilliseconds} ms");
                 }
@@ -284,24 +287,23 @@ namespace eodhd_download
             {
                 var tt = ExtractHistoricalStockPrices(coll, exchangeSymbolId, fromDate);
 
-                var splitSym = exchangeSymbolId.Split('.');
-                if (splitSym.Length != 2) { throw new Exception($"Invalid format of symbol ({exchangeSymbolId}) should be format 'sym.exchng'"); }
+                var prefix = ExtractUtil.ColumnPrefixFromExchangeSymbolId(exchangeSymbolId);
 
                 if (closeOnly)
                 {
-                    tableBuilder.Include(splitSym[0].ToLower(), tt.columns["Date"], tt.columns["Close"]);
+                    tableBuilder.Include(prefix, tt.columns["Date"], tt.columns["Close"]);
                 }
                 else
                 {
                     if (volume)
                     {
-                        tableBuilder.Include(splitSym[0].ToLower(), tt.columns["Date"], tt.columns["Open"],
+                        tableBuilder.Include(prefix, tt.columns["Date"], tt.columns["Open"],
                             tt.columns["Low"], tt.columns["High"], tt.columns["Close"], tt.columns["Volume"]);
 
                     }
                     else
                     {
-                        tableBuilder.Include(splitSym[0].ToLower(), tt.columns["Date"], tt.columns["Open"],
+                        tableBuilder.Include(prefix, tt.columns["Date"], tt.columns["Open"],
                              tt.columns["Low"], tt.columns["High"], tt.columns["Close"]);
 
                     }
@@ -314,16 +316,15 @@ namespace eodhd_download
             {
                 var tt = ExtractSentimentsData(coll, exchangeSymbolId, fromDate);
 
-                var splitSym = exchangeSymbolId.Split('.');
-                if (splitSym.Length != 2) { throw new Exception($"Invalid format of symbol ({exchangeSymbolId}) should be format 'sym.exchng'"); }
+                var prefix = ExtractUtil.ColumnPrefixFromExchangeSymbolId(exchangeSymbolId);
 
                 if (count)
                 {
-                    tableBuilder.Include(splitSym[0].ToLower(), tt.columns["Date"], tt.columns["Count"], tt.columns["Normalized"]);
+                    tableBuilder.Include(prefix, tt.columns["Date"], tt.columns["Count"], tt.columns["Normalized"]);
                 }
                 else
                 {
-                    tableBuilder.Include(splitSym[0].ToLower(), tt.columns["Date"], tt.columns["Normalized"]);
+                    tableBuilder.Include(prefix, tt.columns["Date"], tt.columns["Normalized"]);
                 }
             }
         }
@@ -338,9 +339,29 @@ namespace eodhd_download
             bool DoWriteExtract = true;
             bool DoWriteSymbolsALL = true;
             bool DoWriteSymbolsSPX = true;
+            bool DoWriteEventFlags = false;
 
-            var dbPath = Environment.GetEnvironmentVariable("MARKETDATA_DB_PATH")
-                ?? @"D:\LiteDb\EodHd.db";
+            var dbPath = EnvOrDefault("MARKETDATA_DB_PATH", @"D:\LiteDb\EodHd.db");
+            var extractCsv = EnvOrDefault("MARKETDATA_EXTRACT_CSV", @"D:\predict\index_extract.csv");
+            var symbolsCsv = EnvOrDefault("MARKETDATA_SYMBOLS_CSV", @"D:\predict\exchange_symbols.csv");
+            var spxSymbolsCsv = EnvOrDefault("MARKETDATA_SPX_SYMBOLS_CSV", @"D:\predict\SPX500_symbols.csv");
+            var eventsCsv = EnvOrDefault("MARKETDATA_EVENTS_CSV", @"D:\predict\us_economic_events.csv");
+            var eventTypesCsv = EnvOrDefault("MARKETDATA_EVENT_TYPES_CSV", @"D:\predict\us_economic_event_types.csv");
+
+            var writeEventFlagsOnly = args.Any(a => string.Equals(a, "--write-event-flags", StringComparison.OrdinalIgnoreCase));
+            if (writeEventFlagsOnly)
+            {
+                var apiTokenOnly = Environment.GetEnvironmentVariable("EODHD_API_TOKEN");
+                if (string.IsNullOrWhiteSpace(apiTokenOnly))
+                {
+                    throw new InvalidOperationException(
+                        "EODHD API token is not set. Set the EODHD_API_TOKEN environment variable before running.");
+                }
+                var eodHdEvents = new EodNetApi.Client(apiTokenOnly, timeout: 60000);
+                await EventCalendar.WriteEventFlagsAsync(eodHdEvents, extractCsv, eventsCsv, eventTypesCsv);
+                return;
+            }
+
             var db = new LiteDatabase(dbPath);
 
             var apiToken = Environment.GetEnvironmentVariable("EODHD_API_TOKEN");
@@ -390,6 +411,20 @@ namespace eodhd_download
                 "S5TH.INDX",
                 "S5TW.INDX",
                 "ADVN.INDX",
+                "ADVQ.INDX",
+                "DECN.INDX",
+                "DECQ.INDX",
+                "NDTH.INDX",
+                "NDTW.INDX",
+                "NDFI.INDX",
+                "S5FI.INDX",
+                "SKEW.INDX",
+                "VVIX.INDX",
+                "VIX3M.INDX",
+                "VIX9D.INDX",
+                "MAHN.INDX",
+                "MALN.INDX",
+                "TRIN.INDX",
                 "QQQ.US"
             };
             var qqqKeys = await GetETFSymbols(db, "QQQ.US");
@@ -434,10 +469,11 @@ namespace eodhd_download
                 var sdColl = db.GetCollection<MarketApi.SentimentsData>("sentiments_data");
                 IncludeSentimentsData(tableBuilder, sdColl, sentExchangeSymbolList, startDate, true);
 
-                // Fill in blanks in the table and write it out
+                // Recode MAHN/MALN vendor 0.01 count floor to 0.0, then fill blanks and write.
                 var table = tableBuilder.Table;
+                ExtractUtil.RecodeCountFloorToZero(table, ["mahn", "maln"]);
                 ExtractUtil.FillInTable<double>(table);
-                table.WriteCsv(@"D:\predict\index_extract.csv", CsvHeaderType.Header);
+                table.WriteCsv(extractCsv, CsvHeaderType.Header);
             }
 
             if (DoWriteSymbolsALL)
@@ -447,7 +483,7 @@ namespace eodhd_download
                 var results = symbolsColl.FindAll().ToList();
                 results.ForEach(x => { x.Country = (string.IsNullOrEmpty(x.Country) ? "" : x.Country); x.Name = (string.IsNullOrEmpty(x.Name) ? "" : x.Name); });
                 var table = results.ToTable();
-                table.WriteCsv(@"D:\predict\exchange_symbols.csv", CsvHeaderType.Header);
+                table.WriteCsv(symbolsCsv, CsvHeaderType.Header);
             }
 
             if (DoWriteSymbolsSPX)
@@ -455,11 +491,26 @@ namespace eodhd_download
                 // Write out symbol file
                 var results = await GetIndexSymbols(db, "GSPC.INDX");
                 var table = results.ToTable();
-                table.WriteCsv(@"D:\predict\SPX500_symbols.csv", CsvHeaderType.Header);
+                table.WriteCsv(spxSymbolsCsv, CsvHeaderType.Header);
+            }
+
+            if (DoWriteEventFlags)
+            {
+                await EventCalendar.WriteEventFlagsAsync(eodHdNew, extractCsv, eventsCsv, eventTypesCsv);
             }
 
             // Clean up
             db.Dispose();
+        }
+
+        static string EnvOrDefault(string name, string fallback)
+        {
+            var value = Environment.GetEnvironmentVariable(name);
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return fallback;
+            }
+            return value;
         }
     }
 }

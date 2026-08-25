@@ -72,7 +72,10 @@ Do **not** hard-code API keys in source. Secrets are loaded via a **local, gitig
 |----------|---------|---------|
 | `EODHD_API_TOKEN` | EODHD API key (**required**) | — |
 | `MARKETDATA_DB_PATH` | Path to the LiteDB database file | `D:\LiteDb\EodHd.db` |
-| `MARKETDATA_TRANSFORM_CSV` | Path to the transform feature CSV used by `eodhd_statistics` | `d:\predict\index_extract_ta.csv` |
+| `MARKETDATA_TRANSFORM_CSV` | Transform feature CSV (transform output and `eodhd_statistics` input) | `d:\predict\index_extract_ta.csv` |
+| `MARKETDATA_EXTRACT_CSV` | Date-keyed extract CSV (download write and transform input) | `D:\predict\index_extract.csv` |
+| `MARKETDATA_SYMBOLS_CSV` | Exchange-symbol universe CSV | `D:\predict\exchange_symbols.csv` |
+| `MARKETDATA_SPX_SYMBOLS_CSV` | Index membership CSV | `D:\predict\SPX500_symbols.csv` |
 
 ### Local secrets script (recommended)
 
@@ -138,6 +141,8 @@ dotnet run --project eodhd_download/eodhd_download.csproj
 
 # Feature transform (after extract CSV exists; paths currently hard-coded in Program)
 dotnet run --project eodhd_transform/eodhd_transform.csproj
+# or: dotnet run --project eodhd_transform/eodhd_transform.csproj -- "D:\predict\index_extract.csv" "D:\predict\index_extract_ta.csv"
+# `dotnet test MarketData.Tests/MarketData.Tests.csproj` covers fill-forward, EodFormatter, and the QQQ output column contract.
 
 # Grouped statistics (after transform CSV exists)
 dotnet run --project eodhd_statistics/eodhd_statistics.csproj
@@ -177,3 +182,4 @@ More detail: `.grok/rules/ARCHITECTURE.md`.
 ## License
 
 Private / unlicensed unless otherwise specified.
+
