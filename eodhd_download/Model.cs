@@ -140,4 +140,64 @@ namespace MarketApi
         public double? ChangePercentage { get; set; }
     }
 
+    public class EarningsCalendarResponse
+    {
+        [JsonPropertyName("type")]
+        public string Type { get; set; }
+        [JsonPropertyName("description")]
+        public string Description { get; set; }
+        [JsonPropertyName("from")]
+        public string From { get; set; }
+        [JsonPropertyName("to")]
+        public string To { get; set; }
+        [JsonPropertyName("symbols")]
+        public string Symbols { get; set; }
+        [JsonPropertyName("earnings")]
+        public List<EarningsCalendarItem> Earnings { get; set; }
+    }
+
+    public class EarningsCalendarItem
+    {
+        [JsonPropertyName("code")]
+        public string Code { get; set; }
+        [JsonPropertyName("report_date")]
+        public string ReportDate { get; set; }
+        [JsonPropertyName("date")]
+        public string Date { get; set; }
+        [JsonPropertyName("before_after_market")]
+        public string BeforeAfterMarket { get; set; }
+        [JsonPropertyName("currency")]
+        public string Currency { get; set; }
+        [JsonPropertyName("actual")]
+        public double? Actual { get; set; }
+        [JsonPropertyName("estimate")]
+        public double? Estimate { get; set; }
+        [JsonPropertyName("difference")]
+        public double? Difference { get; set; }
+        [JsonPropertyName("percent")]
+        public double? Percent { get; set; }
+        [JsonPropertyName("period")]
+        public string Period { get; set; }
+    }
+
+    public class IntradayBar
+    {
+        [JsonPropertyName("timestamp")]
+        public long Timestamp { get; set; }
+        [JsonPropertyName("gmtoffset")]
+        public int GmtOffset { get; set; }
+        [JsonPropertyName("datetime")]
+        public string Datetime { get; set; }
+        [JsonPropertyName("open")]
+        public double? Open { get; set; }
+        [JsonPropertyName("high")]
+        public double? High { get; set; }
+        [JsonPropertyName("low")]
+        public double? Low { get; set; }
+        [JsonPropertyName("close")]
+        public double? Close { get; set; }
+        [JsonPropertyName("volume")]
+        public double? Volume { get; set; }
+    }
+
 }

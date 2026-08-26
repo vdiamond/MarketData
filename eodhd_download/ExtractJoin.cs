@@ -19,7 +19,9 @@ public static class ExtractJoin
         ILiteCollection<MarketApi.HistoricalStockPrice> coll,
         string extractPath,
         IReadOnlyList<string> exchangeSymbolIds,
-        DateTime fromDate)
+        DateTime fromDate,
+        IReadOnlyList<string>? afterColumnNames = null,
+        bool skipEmpty = false)
     {
         ArgumentNullException.ThrowIfNull(coll);
         ArgumentException.ThrowIfNullOrWhiteSpace(extractPath);
@@ -59,8 +61,15 @@ public static class ExtractJoin
             var tt = ExtractHistoricalStockPrices(coll, exchangeSymbolId, fromDate);
             if (tt.rows.Count == 0)
             {
-                throw new InvalidOperationException($"No historical_day_prices for {exchangeSymbolId}.");
+                if (!skipEmpty)
+                {
+                    throw new InvalidOperationException($"No historical_day_prices for {exchangeSymbolId}.");
+                }
+                Console.WriteLine($"No historical_day_prices for {exchangeSymbolId}; skipping join.");
+                continue;
             }
+            var dateCol = (IColumn<string>)tt.columns["Date"];
+            Console.WriteLine($"{exchangeSymbolId}: bars={tt.rows.Count} first={dateCol[0]} last={dateCol[tt.rows.Count - 1]}");
             var prefix = ExtractUtil.ColumnPrefixFromExchangeSymbolId(exchangeSymbolId);
             dateTable.LeftJoin(
                 dict,
@@ -77,6 +86,12 @@ public static class ExtractJoin
             }
         }
 
+        if (added.Count == 0)
+        {
+            Console.WriteLine("No symbols had historical_day_prices; extract unchanged.");
+            return before;
+        }
+
         foreach (var col in dateTable.columns)
         {
             if (col.TypeCode == TypeCode.Double)
@@ -87,7 +102,8 @@ public static class ExtractJoin
 
         StripColumns(grid, added);
         header = grid[0];
-        int insertAt = InsertIndex(header, ["vix9d.Volume", "vix3m.Volume", "vvix.Volume", "vix.Volume"], EventCalendar.FlagColumns);
+        var after = afterColumnNames ?? (IReadOnlyList<string>)["vix9d.Volume", "vix3m.Volume", "vvix.Volume", "vix.Volume"];
+        int insertAt = InsertIndex(header, after, EventCalendar.FlagColumns);
         InsertDoubleColumns(grid, added, dateTable, insertAt);
 
         if (grid.Count - 1 != before)
@@ -139,6 +155,48 @@ public static class ExtractJoin
             for (int r = 1; r < grid.Count; r++)
             {
                 grid[r].Insert(insertAt + c, FormatDouble(values[c][r - 1]));
+            }
+        }
+    }
+
+
+    public static void AddOrReplaceStringColumns(
+        List<List<string>> grid,
+        IReadOnlyList<string> columnNames,
+        IReadOnlyList<string[]> values,
+        int insertAt)
+    {
+        ArgumentNullException.ThrowIfNull(grid);
+        ArgumentNullException.ThrowIfNull(columnNames);
+        ArgumentNullException.ThrowIfNull(values);
+        if (grid.Count == 0)
+        {
+            throw new InvalidOperationException("Extract is empty.");
+        }
+        if (columnNames.Count != values.Count)
+        {
+            throw new ArgumentException("Column names and values must be the same length.");
+        }
+        var dataRows = grid.Count - 1;
+        foreach (var col in values)
+        {
+            if (col.Length != dataRows)
+            {
+                throw new ArgumentException($"Column length {col.Length} does not match extract data rows {dataRows}.");
+            }
+        }
+
+        StripColumns(grid, columnNames);
+        if (insertAt < 0 || insertAt > grid[0].Count)
+        {
+            insertAt = grid[0].Count;
+        }
+        for (int c = 0; c < columnNames.Count; c++)
+        {
+            grid[0].Insert(insertAt + c, columnNames[c]);
+            for (int r = 1; r < grid.Count; r++)
+            {
+                grid[r].Insert(insertAt + c, values[c][r - 1] ?? "");
             }
         }
     }

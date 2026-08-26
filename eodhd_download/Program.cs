@@ -362,17 +362,69 @@ namespace eodhd_download
                 return;
             }
 
-            var loadPricesOnly = ParseLoadPricesArg(args);
+            if (HasFlag(args, "--write-earnings"))
+            {
+                var apiTokenEarn = RequireApiToken();
+                var earningsCsv = EnvOrDefault("MARKETDATA_EARNINGS_CSV", @"D:\predict\qqq_member_earnings.csv");
+                var eodHdEarn = new EodNetApi.Client(apiTokenEarn, timeout: 120000);
+                var earnResult = await EarningsCalendar.WriteEarningsFlagsAsync(eodHdEarn, extractCsv, earningsCsv);
+                Console.WriteLine(
+                    $"Earnings calendar: dump_rows={earnResult.DumpRows} extract_rows={earnResult.DataRows} evt_earn=1 {earnResult.EarnFlags} bmo={earnResult.BmoFlags} amc={earnResult.AmcFlags} skipped={string.Join(",", earnResult.SkippedTickers)} forbidden={earnResult.Forbidden}");
+                if (!string.IsNullOrWhiteSpace(earnResult.StatusNote))
+                {
+                    Console.WriteLine(earnResult.StatusNote);
+                }
+                return;
+            }
+
+
+            if (HasFlag(args, "--write-qqq-intraday"))
+            {
+                var apiTokenIntra = RequireApiToken();
+                var dumpCsv = EnvOrDefault("MARKETDATA_QQQ_INTRADAY_CSV", @"D:\predict\qqq_intraday_1h.csv");
+                var eodHdIntra = new EodNetApi.Client(apiTokenIntra, timeout: 300000);
+                var intraResult = await QqqIntraday.WriteAsync(eodHdIntra, extractCsv, dumpCsv);
+                Console.WriteLine(
+                    $"QQQ 1h: dump_rows={intraResult.DumpRows} extract_rows={intraResult.ExtractRows} h1={intraResult.FirstHourNonempty} hlast={intraResult.LastHourNonempty} forbidden={intraResult.Forbidden} too_short={intraResult.HistoryTooShort} joined={intraResult.Joined}");
+                if (!string.IsNullOrWhiteSpace(intraResult.StatusNote))
+                {
+                    Console.WriteLine(intraResult.StatusNote);
+                }
+                return;
+            }
+
+            var loadPricesOnly = ParseCsvListArg(args, "--load-prices");
             if (loadPricesOnly != null)
             {
                 var apiTokenPrices = RequireApiToken();
                 using var dbPrices = new LiteDatabase(dbPath);
-                var eodHdPrices = new EodNetApi.Client(apiTokenPrices);
+                var eodHdPrices = new EodNetApi.Client(apiTokenPrices, timeout: 60000);
                 var symbols = new List<string>(loadPricesOnly);
                 Console.WriteLine($"Loading prices only for {symbols.Count} symbol(s): {string.Join(", ", symbols)}");
-                var affected = await LoadEndOfDayHistoricalStockPrice(
-                    dbPrices, eodHdPrices, DateTime.Now.AddDays(-10000), DateTime.Now, symbols);
-                Console.WriteLine($"Price load complete. Rows upserted: {affected}");
+                var totalAffected = 0;
+                foreach (var symbol in symbols)
+                {
+                    var outcome = await TryLoadPricesWithUsFallback(dbPrices, eodHdPrices, symbol);
+                    totalAffected += outcome.Affected;
+                    Console.WriteLine(outcome.Note);
+                }
+                Console.WriteLine($"Price load complete. Rows upserted: {totalAffected}");
+                return;
+            }
+
+            var joinPrices = ParseCsvListArg(args, "--join-prices");
+            if (joinPrices != null)
+            {
+                using var dbJoin = new LiteDatabase(dbPath);
+                var hspColl = dbJoin.GetCollection<MarketApi.HistoricalStockPrice>("historical_day_prices");
+                var rows = ExtractJoin.JoinHistoricalPricesOntoExtract(
+                    hspColl,
+                    extractCsv,
+                    joinPrices,
+                    DateTime.Now.AddDays(-10000),
+                    afterColumnNames: ["tnx.Volume"],
+                    skipEmpty: true);
+                Console.WriteLine($"Joined [{string.Join(", ", joinPrices)}] onto {extractCsv}; rows={rows}");
                 return;
             }
 
@@ -457,6 +509,10 @@ namespace eodhd_download
                 "GSPC.INDX",
                 "VIX.INDX",
                 "TNX.INDX",
+                "IRX.INDX",
+                "FVX.INDX",
+                "TYX.INDX",
+                "MOVE.INDX",
                 "DXY.INDX",
                 "N225.INDX",
                 "GDAXI.INDX",
@@ -481,7 +537,15 @@ namespace eodhd_download
                 "MAHN.INDX",
                 "MALN.INDX",
                 "TRIN.INDX",
-                "QQQ.US"
+                "QQQ.US",
+                "HYG.US",
+                "LQD.US",
+                "TICK.INDX",
+                "IWM.US",
+                "SMH.US",
+                "US2Y.INDX",
+                "XLF.US",
+                "XLE.US"
             };
             var qqqKeys = await GetETFSymbols(db, "QQQ.US");
             var priceExchangeSymbolList = new List<string>([..indexKeys, ..qqqKeys]);
@@ -585,21 +649,22 @@ namespace eodhd_download
             return args.Any(a => string.Equals(a, flag, StringComparison.OrdinalIgnoreCase));
         }
 
-        static List<string>? ParseLoadPricesArg(string[] args)
+        static List<string>? ParseCsvListArg(string[] args, string flag)
         {
+            var prefix = flag + "=";
             for (int i = 0; i < args.Length; i++)
             {
                 var arg = args[i];
                 string? value = null;
-                if (arg.StartsWith("--load-prices=", StringComparison.OrdinalIgnoreCase))
+                if (arg.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
                 {
-                    value = arg["--load-prices=".Length..];
+                    value = arg[prefix.Length..];
                 }
-                else if (string.Equals(arg, "--load-prices", StringComparison.OrdinalIgnoreCase))
+                else if (string.Equals(arg, flag, StringComparison.OrdinalIgnoreCase))
                 {
                     if (i + 1 >= args.Length)
                     {
-                        throw new InvalidOperationException("--load-prices requires a comma-separated symbol list.");
+                        throw new InvalidOperationException($"{flag} requires a comma-separated symbol list.");
                     }
                     value = args[i + 1];
                 }
@@ -612,11 +677,88 @@ namespace eodhd_download
                     .ToList();
                 if (symbols.Count == 0)
                 {
-                    throw new InvalidOperationException("--load-prices requires at least one symbol.");
+                    throw new InvalidOperationException($"{flag} requires at least one symbol.");
                 }
                 return symbols;
             }
             return null;
+        }
+
+        static async Task<(int Affected, string UsedKey, string Note)> TryLoadPricesWithUsFallback(
+            LiteDatabase db, EodNetApi.Client eodHd, string symbol)
+        {
+            var (affected, err) = await TryLoadOneSymbol(db, eodHd, symbol);
+            if (err == null && affected > 0)
+            {
+                return (affected, symbol, $"Loaded {symbol}: {affected} bars");
+            }
+            err ??= "empty series";
+
+            var alt = AlternateUsCatalogKey(db, symbol);
+            if (alt != null)
+            {
+                Console.WriteLine($"{symbol} failed ({err}); retrying {alt}");
+                var (altAffected, altErr) = await TryLoadOneSymbol(db, eodHd, alt);
+                if (altErr == null && altAffected > 0)
+                {
+                    return (altAffected, alt,
+                        $"Loaded {alt}: {altAffected} bars (fallback from {symbol}: {err})");
+                }
+                return (0, symbol,
+                    $"Failed {symbol} ({err}) and catalog key {alt} ({altErr ?? "empty series"})");
+            }
+            return (0, symbol, $"Failed {symbol}: {err}");
+        }
+
+        static string? AlternateUsCatalogKey(LiteDatabase db, string exchangeSymbolId)
+        {
+            // HYG.US / LQD.US / IWM.US / SMH.US / XLF.US / XLE.US -> catalog exchange (NYSE ARCA / NASDAQ). Never map MOVE.INDX to MOVE.NASDAQ or TICK.INDX to a NASDAQ TICK.
+            var parts = exchangeSymbolId.Split('.', 2);
+            if (parts.Length != 2 || !string.Equals(parts[1], "US", StringComparison.OrdinalIgnoreCase))
+            {
+                return null;
+            }
+            var ticker = parts[0];
+            var coll = db.GetCollection<MarketApi.ExchangeSymbol>("exchange_symbols");
+            foreach (var match in coll.Find(x => x.Symbol == ticker))
+            {
+                var key = $"{match.Symbol}.{match.Exchange}";
+                if (!string.Equals(key, exchangeSymbolId, StringComparison.OrdinalIgnoreCase)
+                    && !string.Equals(match.Exchange, "US", StringComparison.OrdinalIgnoreCase))
+                {
+                    return key;
+                }
+            }
+            return null;
+        }
+
+        static async Task<(int Affected, string? Error)> TryLoadOneSymbol(
+            LiteDatabase db, EodNetApi.Client eodHd, string symbol)
+        {
+            try
+            {
+                var affected = await LoadEndOfDayHistoricalStockPrice(
+                    db, eodHd, DateTime.Now.AddDays(-10000), DateTime.Now, new List<string> { symbol });
+                return (affected, null);
+            }
+            catch (Exception ex)
+            {
+                return (0, SummarizeLoadError(ex));
+            }
+        }
+
+        static string SummarizeLoadError(Exception ex)
+        {
+            var msg = ex.Message ?? string.Empty;
+            if (msg.Contains("api_token", StringComparison.OrdinalIgnoreCase))
+            {
+                return "request failed (details omitted)";
+            }
+            if (msg.Length > 240)
+            {
+                msg = msg[..240];
+            }
+            return msg;
         }
     }
 }

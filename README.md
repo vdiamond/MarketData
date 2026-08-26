@@ -149,6 +149,36 @@ dotnet run --project eodhd_statistics/eodhd_statistics.csproj
 # or: dotnet run --project eodhd_statistics/eodhd_statistics.csproj -- "D:\predict\index_extract_ta.csv"
 ```
 
+Targeted price load/join (does not rewrite the full extract):
+
+```powershell
+dotnet run --project eodhd_download/eodhd_download.csproj -- --load-prices IRX.INDX,FVX.INDX,TYX.INDX,MOVE.INDX,HYG.US,LQD.US
+dotnet run --project eodhd_download/eodhd_download.csproj -- --join-prices IRX.INDX,FVX.INDX,TYX.INDX,MOVE.INDX,HYG.US,LQD.US
+dotnet run --project eodhd_download/eodhd_download.csproj -- --load-prices TICK.INDX,IWM.US,SMH.US
+dotnet run --project eodhd_download/eodhd_download.csproj -- --join-prices TICK.INDX,IWM.US,SMH.US
+dotnet run --project eodhd_download/eodhd_download.csproj -- --load-prices US2Y.INDX,XLF.US,XLE.US
+dotnet run --project eodhd_download/eodhd_download.csproj -- --join-prices US2Y.INDX,XLF.US,XLE.US
+```
+
+`--join-vix-terms` remains a shorthand for joining VIX1Y.INDX and VIX6M.INDX. `--load-prices` continues past a per-symbol 404/empty (MOVE.INDX or TICK.INDX may be omitted). `.US` ETFs that 404 retry the catalog exchange key (HYG.NYSE ARCA, IWM.NYSE ARCA, SMH.NASDAQ, XLF.NYSE ARCA, XLE.NYSE ARCA); MOVE.NASDAQ and a NASDAQ TICK are never substituted.
+
+QQQ-member earnings calendar (does not rewrite prices or rebuild TA):
+
+```powershell
+dotnet run --project eodhd_download/eodhd_download.csproj -- --write-earnings
+```
+
+Dumps `D:\predict\qqq_member_earnings.csv` and left-joins `evt_earn` / `evt_earn_bmo` / `evt_earn_amc` / `evt_earn_n` onto the extract. HTTP 403 means the plan does not include calendar; the run stops and does not scrape.
+
+
+QQQ 1-hour bars (does not rewrite prices, does not rebuild TA, does not FillIn missing hours):
+
+```powershell
+dotnet run --project eodhd_download/eodhd_download.csproj -- --write-qqq-intraday
+```
+
+Dumps `D:\predict\qqq_intraday_1h.csv` and left-joins `qqq_h1` / `qqq_hlast` / `qqq_h1_vol` / `qqq_hlast_vol` onto the extract for regular hours 09:30-16:00 ET. HTTP 403 or history starting after 2022 stops before join.
+
 Pipeline stages in `eodhd_download` `Program.Main` are controlled by boolean feature flags (lookup symbols, fundamentals, prices, sentiment, extracts). Toggle those flags for iterative downloads.
 
 ## Data model highlights

@@ -276,6 +276,112 @@ namespace EodNetApi
             return ret;
         }
 
+        public async Task<List<MarketApi.EarningsCalendarItem>> GetCalendarEarningsAsync(
+            DateOnly from,
+            DateOnly to,
+            IReadOnlyList<string> symbols,
+            CancellationToken ct = default)
+        {
+            ArgumentNullException.ThrowIfNull(symbols);
+            if (symbols.Count == 0)
+            {
+                throw new ArgumentException("GetCalendarEarningsAsync requires a non-empty symbols list (from/to without symbols defaults to a 7-day window).", nameof(symbols));
+            }
+            _restClient.QueryParameters.Add<DateOnly>("from", from);
+            _restClient.QueryParameters.Add<DateOnly>("to", to);
+            _restClient.QueryParameters.Add("symbols", string.Join(',', symbols));
+            var apiResponse = await _restClient.CallApi<string>(_get_earnings, ct, false);
+            if (apiResponse.HttpStatusCode == HttpStatusCode.Forbidden)
+            {
+                throw new HttpRequestException(
+                    $"Earnings calendar API returned HTTP 403 Forbidden (plan does not include calendar/earnings). {apiResponse.Content}",
+                    inner: null,
+                    statusCode: apiResponse.HttpStatusCode);
+            }
+            if (apiResponse.HttpStatusCode == HttpStatusCode.Unauthorized)
+            {
+                throw new HttpRequestException(
+                    "Earnings calendar API returned HTTP 401 Unauthorized (bad token).",
+                    inner: null,
+                    statusCode: apiResponse.HttpStatusCode);
+            }
+            if (apiResponse.HttpStatusCode == HttpStatusCode.NotFound)
+            {
+                throw new HttpRequestException(
+                    $"Earnings calendar API returned HTTP 404 (unknown symbol). {apiResponse.Content}",
+                    inner: null,
+                    statusCode: apiResponse.HttpStatusCode);
+            }
+            if (!apiResponse.Ok)
+            {
+                throw new HttpRequestException(
+                    $"{apiResponse.ErrorMessage}/{apiResponse.Content}",
+                    inner: null,
+                    statusCode: apiResponse.HttpStatusCode);
+            }
+            if (string.IsNullOrWhiteSpace(apiResponse.Content) || apiResponse.Content == "[]")
+            {
+                return new List<MarketApi.EarningsCalendarItem>();
+            }
+            var wrapper = JsonSerializer.Deserialize<MarketApi.EarningsCalendarResponse>($"{apiResponse.Content}");
+            if (wrapper == null)
+            {
+                throw new Exception("Deserialization of EarningsCalendarResponse failed, null returned");
+            }
+            return wrapper.Earnings ?? new List<MarketApi.EarningsCalendarItem>();
+        }
+
+
+        public async Task<List<MarketApi.IntradayBar>> GetIntradayAsync(
+            string symbol,
+            string interval,
+            long fromUnix,
+            long toUnix,
+            CancellationToken ct = default)
+        {
+            ArgumentException.ThrowIfNullOrWhiteSpace(symbol);
+            ArgumentException.ThrowIfNullOrWhiteSpace(interval);
+            if (toUnix < fromUnix)
+            {
+                throw new ArgumentOutOfRangeException(nameof(toUnix), "toUnix must be >= fromUnix.");
+            }
+            _restClient.QueryParameters.Add("interval", interval);
+            _restClient.QueryParameters.Add("from", fromUnix.ToString());
+            _restClient.QueryParameters.Add("to", toUnix.ToString());
+            var apiResponse = await _restClient.CallApi<string>($@"{_get_intraday}/{symbol}", ct, false);
+            if (apiResponse.HttpStatusCode == HttpStatusCode.Forbidden)
+            {
+                throw new HttpRequestException(
+                    $"Intraday API returned HTTP 403 Forbidden (plan does not include this endpoint). {apiResponse.Content}",
+                    inner: null,
+                    statusCode: apiResponse.HttpStatusCode);
+            }
+            if (apiResponse.HttpStatusCode == HttpStatusCode.Unauthorized)
+            {
+                throw new HttpRequestException(
+                    "Intraday API returned HTTP 401 Unauthorized (bad token).",
+                    inner: null,
+                    statusCode: apiResponse.HttpStatusCode);
+            }
+            if (!apiResponse.Ok)
+            {
+                throw new HttpRequestException(
+                    $"{apiResponse.ErrorMessage}/{apiResponse.Content}",
+                    inner: null,
+                    statusCode: apiResponse.HttpStatusCode);
+            }
+            if (string.IsNullOrWhiteSpace(apiResponse.Content) || apiResponse.Content == "[]")
+            {
+                return new List<MarketApi.IntradayBar>();
+            }
+            var ret = JsonSerializer.Deserialize<List<MarketApi.IntradayBar>>($"{apiResponse.Content}");
+            if (ret == null)
+            {
+                throw new Exception("Deserialization of IntradayBar list failed, null returned");
+            }
+            return ret;
+        }
+
 /*
         public async Task<BsonDocument> GetUser(CancellationToken ct = default)
         {
@@ -358,6 +464,7 @@ namespace EodNetApi
         private const string _get_sentiments = @"sentiments";
         private const string _get_economic_events = @"economic-events";
         private const string _get_macro_indicator = @"macro-indicator";
+        private const string _get_intraday = @"intraday";
         #endregion
     }
         internal class EodFormatter : IFormatter
