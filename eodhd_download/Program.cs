@@ -341,12 +341,12 @@ namespace eodhd_download
             bool DoWriteSymbolsSPX = true;
             bool DoWriteEventFlags = false;
 
-            var dbPath = EnvOrDefault("MARKETDATA_DB_PATH", @"D:\LiteDb\EodHd.db");
-            var extractCsv = EnvOrDefault("MARKETDATA_EXTRACT_CSV", @"D:\predict\index_extract.csv");
-            var symbolsCsv = EnvOrDefault("MARKETDATA_SYMBOLS_CSV", @"D:\predict\exchange_symbols.csv");
-            var spxSymbolsCsv = EnvOrDefault("MARKETDATA_SPX_SYMBOLS_CSV", @"D:\predict\SPX500_symbols.csv");
-            var eventsCsv = EnvOrDefault("MARKETDATA_EVENTS_CSV", @"D:\predict\us_economic_events.csv");
-            var eventTypesCsv = EnvOrDefault("MARKETDATA_EVENT_TYPES_CSV", @"D:\predict\us_economic_event_types.csv");
+            var dbPath = EnvOrDefault("MARKETDATA_DB_PATH", @"D:\grokbot\LiteDb\EodHd.db");
+            var extractCsv = EnvOrDefault("MARKETDATA_EXTRACT_CSV", @"D:\grokbot\index_extract.csv");
+            var symbolsCsv = EnvOrDefault("MARKETDATA_SYMBOLS_CSV", @"D:\grokbot\exchange_symbols.csv");
+            var spxSymbolsCsv = EnvOrDefault("MARKETDATA_SPX_SYMBOLS_CSV", @"D:\grokbot\SPX500_symbols.csv");
+            var eventsCsv = EnvOrDefault("MARKETDATA_EVENTS_CSV", @"D:\grokbot\us_economic_events.csv");
+            var eventTypesCsv = EnvOrDefault("MARKETDATA_EVENT_TYPES_CSV", @"D:\grokbot\us_economic_event_types.csv");
 
             var writeEventFlagsOnly = args.Any(a => string.Equals(a, "--write-event-flags", StringComparison.OrdinalIgnoreCase));
             if (writeEventFlagsOnly)
@@ -365,7 +365,7 @@ namespace eodhd_download
             if (HasFlag(args, "--write-earnings"))
             {
                 var apiTokenEarn = RequireApiToken();
-                var earningsCsv = EnvOrDefault("MARKETDATA_EARNINGS_CSV", @"D:\predict\qqq_member_earnings.csv");
+                var earningsCsv = EnvOrDefault("MARKETDATA_EARNINGS_CSV", @"D:\grokbot\qqq_member_earnings.csv");
                 var eodHdEarn = new EodNetApi.Client(apiTokenEarn, timeout: 120000);
                 var earnResult = await EarningsCalendar.WriteEarningsFlagsAsync(eodHdEarn, extractCsv, earningsCsv);
                 Console.WriteLine(
@@ -381,7 +381,7 @@ namespace eodhd_download
             if (HasFlag(args, "--write-qqq-intraday"))
             {
                 var apiTokenIntra = RequireApiToken();
-                var dumpCsv = EnvOrDefault("MARKETDATA_QQQ_INTRADAY_CSV", @"D:\predict\qqq_intraday_1h.csv");
+                var dumpCsv = EnvOrDefault("MARKETDATA_QQQ_INTRADAY_CSV", @"D:\grokbot\qqq_intraday_1h.csv");
                 var eodHdIntra = new EodNetApi.Client(apiTokenIntra, timeout: 300000);
                 var intraResult = await QqqIntraday.WriteAsync(eodHdIntra, extractCsv, dumpCsv);
                 Console.WriteLine(
@@ -442,8 +442,8 @@ namespace eodhd_download
             if (HasFlag(args, "--load-macro"))
             {
                 var apiTokenMacro = RequireApiToken();
-                var sidecarCsv = EnvOrDefault("MARKETDATA_MACRO_CSV", @"D:\predict\us_macro_indicators.csv");
-                var seriesDir = EnvOrDefault("MARKETDATA_MACRO_DIR", @"D:\predict\macro");
+                var sidecarCsv = EnvOrDefault("MARKETDATA_MACRO_CSV", @"D:\grokbot\us_macro_indicators.csv");
+                var seriesDir = EnvOrDefault("MARKETDATA_MACRO_DIR", @"D:\grokbot\macro");
                 var eodHdMacro = new EodNetApi.Client(apiTokenMacro, timeout: 60000);
                 Console.WriteLine("Fetching USA macro indicators (alpha-3 USA).");
                 var fetch = await MacroIndicators.FetchUsaAsync(eodHdMacro);

@@ -34,6 +34,9 @@ It is primarily a set of **console ETL pipelines**, not a long-running web servi
 | Statistics | Console report over transform CSV (`eodhd_statistics`; DynamicTable only) |
 | Nullable | Enabled |
 
+**Data directories**
+All extracted and maintained data lives under `D:\grokbot`. The LiteDB database file is `D:\grokbot\LiteDb\EodHd.db`. Default CSV extract and transform paths are under `D:\grokbot`. Do not use `D:\Predict` or `D:\LiteDb`.
+
 ---
 
 ## 2. Repository Layout
@@ -226,7 +229,7 @@ Paths and feature flags in `Main` are **environment-specific**; treat them as co
 
 | Step | Behavior |
 |------|----------|
-| Input | Transform feature CSV (e.g. `index_extract_ta.csv`) loaded via DynamicTable with `Date` as `yyyy-MM-dd` and other fields as double. Path from argv[0], else `MARKETDATA_TRANSFORM_CSV`, else `d:\predict\index_extract_ta.csv`. |
+| Input | Transform feature CSV (e.g. `index_extract_ta.csv`) loaded via DynamicTable with `Date` as `yyyy-MM-dd` and other fields as double. Path from argv[0], else `MARKETDATA_TRANSFORM_CSV`, else `D:\grokbot\index_extract_ta.csv`. |
 | Groups | Full data set (record count, date from, date to); each calendar year; each month of year (all years combined); each weekday (all years/months combined); each day of month (all years combined). Empty buckets are omitted. |
 | Statistics | Named, composable measures over row indexes. Current set: `% of records where qqq_yield_la1 > 0.0`; `% of records where qqq_yield_la1 > 0.0 for records where qqq_close > qqq_ema20`. Add new measures in `Program.Main` via `Statistic` factory methods. |
 | Output | Console report (section per grouping). |

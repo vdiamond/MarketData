@@ -62,8 +62,8 @@ namespace eodhd_transform
 
         static void Main(string[] args)
         {
-            var extractCsv = ResolvePath(args, 0, "MARKETDATA_EXTRACT_CSV", @"d:\predict\index_extract.csv");
-            var transformCsv = ResolvePath(args, 1, "MARKETDATA_TRANSFORM_CSV", @"d:\predict\index_extract_ta.csv");
+            var extractCsv = ResolvePath(args, 0, "MARKETDATA_EXTRACT_CSV", @"D:\grokbot\index_extract.csv");
+            var transformCsv = ResolvePath(args, 1, "MARKETDATA_TRANSFORM_CSV", @"D:\grokbot\index_extract_ta.csv");
 
             //
             // Load Csv - convert all fields to the correct types

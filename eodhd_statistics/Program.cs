@@ -22,7 +22,7 @@ internal sealed class Program
     #region private
 
     private const string TransformCsvEnvironmentVariable = "MARKETDATA_TRANSFORM_CSV";
-    private const string DefaultTransformCsv = @"d:\predict\index_extract_ta.csv";
+    private const string DefaultTransformCsv = @"D:\grokbot\index_extract_ta.csv";
 
     private static string ResolveInputPath(string[] args)
     {

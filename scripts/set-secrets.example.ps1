@@ -22,7 +22,7 @@ $ErrorActionPreference = 'Stop'
 
 # --- Edit these values in set-secrets.local.ps1 only (not in this example file) ---
 $EodhdApiToken = 'YOUR_EODHD_API_TOKEN'
-$MarketDataDbPath = 'D:\LiteDb\EodHd.db'
+$MarketDataDbPath = 'D:\grokbot\LiteDb\EodHd.db'
 # ----------------------------------------------------------------------------------
 
 if ([string]::IsNullOrWhiteSpace($EodhdApiToken) -or $EodhdApiToken -eq 'YOUR_EODHD_API_TOKEN')

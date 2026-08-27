@@ -71,11 +71,11 @@ Do **not** hard-code API keys in source. Secrets are loaded via a **local, gitig
 | Variable | Purpose | Default |
 |----------|---------|---------|
 | `EODHD_API_TOKEN` | EODHD API key (**required**) | — |
-| `MARKETDATA_DB_PATH` | Path to the LiteDB database file | `D:\LiteDb\EodHd.db` |
-| `MARKETDATA_TRANSFORM_CSV` | Transform feature CSV (transform output and `eodhd_statistics` input) | `d:\predict\index_extract_ta.csv` |
-| `MARKETDATA_EXTRACT_CSV` | Date-keyed extract CSV (download write and transform input) | `D:\predict\index_extract.csv` |
-| `MARKETDATA_SYMBOLS_CSV` | Exchange-symbol universe CSV | `D:\predict\exchange_symbols.csv` |
-| `MARKETDATA_SPX_SYMBOLS_CSV` | Index membership CSV | `D:\predict\SPX500_symbols.csv` |
+| `MARKETDATA_DB_PATH` | Path to the LiteDB database file | `D:\grokbot\LiteDb\EodHd.db` |
+| `MARKETDATA_TRANSFORM_CSV` | Transform feature CSV (transform output and `eodhd_statistics` input) | `D:\grokbot\index_extract_ta.csv` |
+| `MARKETDATA_EXTRACT_CSV` | Date-keyed extract CSV (download write and transform input) | `D:\grokbot\index_extract.csv` |
+| `MARKETDATA_SYMBOLS_CSV` | Exchange-symbol universe CSV | `D:\grokbot\exchange_symbols.csv` |
+| `MARKETDATA_SPX_SYMBOLS_CSV` | Index membership CSV | `D:\grokbot\SPX500_symbols.csv` |
 
 ### Local secrets script (recommended)
 
@@ -141,12 +141,12 @@ dotnet run --project eodhd_download/eodhd_download.csproj
 
 # Feature transform (after extract CSV exists; paths currently hard-coded in Program)
 dotnet run --project eodhd_transform/eodhd_transform.csproj
-# or: dotnet run --project eodhd_transform/eodhd_transform.csproj -- "D:\predict\index_extract.csv" "D:\predict\index_extract_ta.csv"
+# or: dotnet run --project eodhd_transform/eodhd_transform.csproj -- "D:\grokbot\index_extract.csv" "D:\grokbot\index_extract_ta.csv"
 # `dotnet test MarketData.Tests/MarketData.Tests.csproj` covers fill-forward, EodFormatter, and the QQQ output column contract.
 
 # Grouped statistics (after transform CSV exists)
 dotnet run --project eodhd_statistics/eodhd_statistics.csproj
-# or: dotnet run --project eodhd_statistics/eodhd_statistics.csproj -- "D:\predict\index_extract_ta.csv"
+# or: dotnet run --project eodhd_statistics/eodhd_statistics.csproj -- "D:\grokbot\index_extract_ta.csv"
 ```
 
 Targeted price load/join (does not rewrite the full extract):
@@ -168,7 +168,7 @@ QQQ-member earnings calendar (does not rewrite prices or rebuild TA):
 dotnet run --project eodhd_download/eodhd_download.csproj -- --write-earnings
 ```
 
-Dumps `D:\predict\qqq_member_earnings.csv` and left-joins `evt_earn` / `evt_earn_bmo` / `evt_earn_amc` / `evt_earn_n` onto the extract. HTTP 403 means the plan does not include calendar; the run stops and does not scrape.
+Dumps `D:\grokbot\qqq_member_earnings.csv` and left-joins `evt_earn` / `evt_earn_bmo` / `evt_earn_amc` / `evt_earn_n` onto the extract. HTTP 403 means the plan does not include calendar; the run stops and does not scrape.
 
 
 QQQ 1-hour bars (does not rewrite prices, does not rebuild TA, does not FillIn missing hours):
@@ -177,7 +177,7 @@ QQQ 1-hour bars (does not rewrite prices, does not rebuild TA, does not FillIn m
 dotnet run --project eodhd_download/eodhd_download.csproj -- --write-qqq-intraday
 ```
 
-Dumps `D:\predict\qqq_intraday_1h.csv` and left-joins `qqq_h1` / `qqq_hlast` / `qqq_h1_vol` / `qqq_hlast_vol` onto the extract for regular hours 09:30-16:00 ET. HTTP 403 or history starting after 2022 stops before join.
+Dumps `D:\grokbot\qqq_intraday_1h.csv` and left-joins `qqq_h1` / `qqq_hlast` / `qqq_h1_vol` / `qqq_hlast_vol` onto the extract for regular hours 09:30-16:00 ET. HTTP 403 or history starting after 2022 stops before join.
 
 Pipeline stages in `eodhd_download` `Program.Main` are controlled by boolean feature flags (lookup symbols, fundamentals, prices, sentiment, extracts). Toggle those flags for iterative downloads.
 
