@@ -3,6 +3,7 @@
   <Project Path="../../DynamicTable/TableCsv/TableCsv/TableCsv.csproj" />
   <Project Path="../../DynamicTable/TableExtension/TableExtension/TableExtension.csproj" />
   <Project Path="../RestClient/RestClient.csproj" />
+  <Project Path="../EodHdExtract/EodHdExtract.csproj" />
   <Project Path="eodhd_download.csproj" />
   <Project Path="../MarketData.Tests/MarketData.Tests.csproj" />
 </Solution>

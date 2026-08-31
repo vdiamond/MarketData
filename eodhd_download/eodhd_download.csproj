@@ -19,7 +19,7 @@
     <ProjectReference Include="..\..\DynamicTable\TableCsv\TableCsv\TableCsv.csproj" />
     <ProjectReference Include="..\..\DynamicTable\TableExtension\TableExtension\TableExtension.csproj" />
     <ProjectReference Include="..\..\DynamicTable\Table\Table\Table.csproj" />
-    <ProjectReference Include="..\RestClient\RestClient.csproj" />
+    <ProjectReference Include="..\EodHdExtract\EodHdExtract.csproj" />
   </ItemGroup>
 
 </Project>

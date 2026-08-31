@@ -1,10 +1,12 @@
 ﻿using RestClient;
 using System.Net;
 using System.Text.Json;
-using System.Text.Json.Serialization;
 
-namespace EodNetApi
+namespace EodHdExtract
 {
+    /// <summary>
+    /// EODHD provider adapter: endpoint paths, query conventions, and JSON mapping into extract models.
+    /// </summary>
     public class Client
     {
         public Client(string apiKey, int timeout = 10000)
@@ -13,28 +15,28 @@ namespace EodNetApi
             _restClient.DefaultQueryParameters.Add("api_token", apiKey);
             _restClient.DefaultQueryParameters.Add("fmt", "json");
         }
-        public async Task<List<MarketApi.Exchange>> GetExchangeGroupsAsync(CancellationToken ct = default)
+        public async Task<List<Exchange>> GetExchangeGroupsAsync(CancellationToken ct = default)
         {
             var apiResponse = await _restClient.CallApi<string>(_get_exchanges, ct, false);
             if (!apiResponse.Ok)
             {
                 throw new Exception($"{apiResponse.ErrorMessage}/{apiResponse.Content}");
             }
-            var ret = JsonSerializer.Deserialize<List<MarketApi.Exchange>>($"{apiResponse.Content}");
+            var ret = JsonSerializer.Deserialize<List<Exchange>>($"{apiResponse.Content}");
             if (ret == null)
             {
                 throw new Exception("Deserialization of Exchange list failed, null returned");
             }
             return ret;
         }
-        public async Task<List<MarketApi.ExchangeSymbol>> GetExchangeSymbolsAsync(string exchangeGroup, CancellationToken ct = default)
+        public async Task<List<ExchangeSymbol>> GetExchangeSymbolsAsync(string exchangeGroup, CancellationToken ct = default)
         {
             var apiResponse = await _restClient.CallApi<string>($@"{_get_exchange_symbols}/{exchangeGroup}", ct, false);
             if (!apiResponse.Ok)
             {
                 throw new Exception($"{apiResponse.ErrorMessage}/{apiResponse.Content}");
             }
-            var ret = JsonSerializer.Deserialize<List<MarketApi.ExchangeSymbol>>($"{apiResponse.Content}");
+            var ret = JsonSerializer.Deserialize<List<ExchangeSymbol>>($"{apiResponse.Content}");
             if (ret == null) 
             {
                 throw new Exception("Deserialization of ExchangeSymbol list failed, null returned");
@@ -67,7 +69,7 @@ namespace EodNetApi
 
         */
 
-        public async Task<MarketApi.FundamentalStock> GetFundamentalsStockAsync(string exchangeSymbolId, CancellationToken ct = default)
+        public async Task<FundamentalStock> GetFundamentalsStockAsync(string exchangeSymbolId, CancellationToken ct = default)
         {
             // To performenace tune, put a filter on to only get Stock Data
             var apiResponse = await _restClient.CallApi<string>($@"{_get_fundamentals}/{exchangeSymbolId}", ct, false);
@@ -78,7 +80,7 @@ namespace EodNetApi
             //debug ===============================================
             // File.WriteAllText(@"d:\xxx.json", apiResponse.Content);
             //=====================================================
-            var ret = JsonSerializer.Deserialize<MarketApi.FundamentalStock>($"{apiResponse.Content}");
+            var ret = JsonSerializer.Deserialize<FundamentalStock>($"{apiResponse.Content}");
             if (ret == null)
             {
                 throw new Exception("Error in deserializing FundamentalStock, response was null");
@@ -86,7 +88,7 @@ namespace EodNetApi
             ret.FundamentalStockId = exchangeSymbolId;
             return ret;
         }
-        public async Task<MarketApi.FundamentalEtf> GetFundamentalsEtfAsync(string exchangeSymbolId, CancellationToken ct = default)
+        public async Task<FundamentalEtf> GetFundamentalsEtfAsync(string exchangeSymbolId, CancellationToken ct = default)
         {
             // To performenace tune, put a filter on to only get ETF Data
             var apiResponse = await _restClient.CallApi<string>($@"{_get_fundamentals}/{exchangeSymbolId}", ct, false);
@@ -95,7 +97,7 @@ namespace EodNetApi
                 throw new Exception($"Resp. from Service({apiResponse.ErrorMessage}/{apiResponse.Content})");
             }
 
-            var ret = JsonSerializer.Deserialize<MarketApi.FundamentalEtf>($"{apiResponse.Content}");
+            var ret = JsonSerializer.Deserialize<FundamentalEtf>($"{apiResponse.Content}");
             if (ret == null)
             {
                 throw new Exception("Error in deserializing FundamentalEtf, response was null");
@@ -103,7 +105,7 @@ namespace EodNetApi
             ret.FundamentalEtfId = exchangeSymbolId;
             return ret;
         }
-        public async Task<MarketApi.FundamentalIndex> GetFundamentalsIndexAsync(string exchangeSymbolId, CancellationToken ct = default)
+        public async Task<FundamentalIndex> GetFundamentalsIndexAsync(string exchangeSymbolId, CancellationToken ct = default)
         {
             // To performenace tune, put a filter on to only get Index Data
             var apiResponse = await _restClient.CallApi<string>($@"{_get_fundamentals}/{exchangeSymbolId}", ct, false);
@@ -112,7 +114,7 @@ namespace EodNetApi
                 throw new Exception($"Resp. from Service({apiResponse.ErrorMessage}/{apiResponse.Content})");
             }
 
-            var ret = JsonSerializer.Deserialize<MarketApi.FundamentalIndex>($"{apiResponse.Content}");
+            var ret = JsonSerializer.Deserialize<FundamentalIndex>($"{apiResponse.Content}");
             if (ret == null)
             {
                 throw new Exception("Error in deserializing FundamentalIndex, response was null");
@@ -122,7 +124,7 @@ namespace EodNetApi
         }
         public enum Period { Day, Week, Month  }
         public enum Order {  Ascending, Descending }
-        public async Task<List<MarketApi.HistoricalStockPrice>> GetEndOfDayHistoricalPriceAsync(string exchangeSymbolId, Period period = Period.Day, Order order = Order.Ascending, DateOnly? from = null, DateOnly? to = null, CancellationToken ct = default)
+        public async Task<List<HistoricalStockPrice>> GetEndOfDayHistoricalPriceAsync(string exchangeSymbolId, Period period = Period.Day, Order order = Order.Ascending, DateOnly? from = null, DateOnly? to = null, CancellationToken ct = default)
         {
             _restClient.QueryParameters.Add<Client.Period>("period", period);
             _restClient.QueryParameters.Add<Client.Order>("order", order);
@@ -139,7 +141,7 @@ namespace EodNetApi
             {
                 throw new Exception($"{apiResponse.ErrorMessage}/{apiResponse.Content}");
             }
-            var ret = JsonSerializer.Deserialize<List<MarketApi.HistoricalStockPrice>>($"{apiResponse.Content}");
+            var ret = JsonSerializer.Deserialize<List<HistoricalStockPrice>>($"{apiResponse.Content}");
             if ( ret == null )
             {
                 throw new Exception("Error in deserializing HistoricalStockPrice - value of null returned");
@@ -184,7 +186,7 @@ namespace EodNetApi
             return _toList(BsonDocument.Parse($"{apiResponse.Content}")["earnings"].AsBsonArray);
         }
 */
-        public async Task<List<MarketApi.SentimentsData>> GetSentimentsAsync(List<string> exchangeSymbolIds, DateOnly fromDate, DateOnly toDate, CancellationToken ct = default)
+        public async Task<List<SentimentsData>> GetSentimentsAsync(List<string> exchangeSymbolIds, DateOnly fromDate, DateOnly toDate, CancellationToken ct = default)
         {
             _restClient.QueryParameters.Add<DateOnly>("from", fromDate);
             _restClient.QueryParameters.Add<DateOnly>("to", toDate);
@@ -196,24 +198,24 @@ namespace EodNetApi
             }
             if (apiResponse.Content == "[]")
             {
-                return new List<MarketApi.SentimentsData>();
+                return new List<SentimentsData>();
             }
-            var sentDict = JsonSerializer.Deserialize<Dictionary<string, List<MarketApi.SentimentsData>>>($"{apiResponse.Content}");
+            var sentDict = JsonSerializer.Deserialize<Dictionary<string, List<SentimentsData>>>($"{apiResponse.Content}");
             if (sentDict == null) { throw new Exception("Deserialization of SentimentsData failed. Return value is null"); }
 
-            var ret = new List<MarketApi.SentimentsData>();
+            var ret = new List<SentimentsData>();
             foreach(var sent in sentDict)
             {
                 foreach (var item in sent.Value)
                 {
-                    ret.Add(new MarketApi.SentimentsData() { ExchangeSymbolId = sent.Key, Count = item.Count, Date = item.Date, Normalized = item.Normalized });
+                    ret.Add(new SentimentsData() { ExchangeSymbolId = sent.Key, Count = item.Count, Date = item.Date, Normalized = item.Normalized });
                 }
             }
 
             return ret;
         }
 
-        public async Task<List<MarketApi.MacroIndicator>> GetMacroIndicatorAsync(string country, string indicator, CancellationToken ct = default)
+        public async Task<List<MacroIndicator>> GetMacroIndicatorAsync(string country, string indicator, CancellationToken ct = default)
         {
             ArgumentException.ThrowIfNullOrWhiteSpace(country);
             ArgumentException.ThrowIfNullOrWhiteSpace(indicator);
@@ -242,9 +244,9 @@ namespace EodNetApi
             }
             if (string.IsNullOrWhiteSpace(apiResponse.Content) || apiResponse.Content == "[]")
             {
-                return new List<MarketApi.MacroIndicator>();
+                return new List<MacroIndicator>();
             }
-            var ret = JsonSerializer.Deserialize<List<MarketApi.MacroIndicator>>($"{apiResponse.Content}");
+            var ret = JsonSerializer.Deserialize<List<MacroIndicator>>($"{apiResponse.Content}");
             if (ret == null)
             {
                 throw new Exception("Deserialization of MacroIndicator list failed, null returned");
@@ -252,7 +254,7 @@ namespace EodNetApi
             return ret;
         }
 
-        public async Task<List<MarketApi.EconomicEvent>> GetEconomicEventsAsync(string country, DateOnly from, DateOnly to, int limit = 1000, int offset = 0, CancellationToken ct = default)
+        public async Task<List<EconomicEvent>> GetEconomicEventsAsync(string country, DateOnly from, DateOnly to, int limit = 1000, int offset = 0, CancellationToken ct = default)
         {
             _restClient.QueryParameters.Add("country", country);
             _restClient.QueryParameters.Add<DateOnly>("from", from);
@@ -266,9 +268,9 @@ namespace EodNetApi
             }
             if (string.IsNullOrWhiteSpace(apiResponse.Content) || apiResponse.Content == "[]")
             {
-                return new List<MarketApi.EconomicEvent>();
+                return new List<EconomicEvent>();
             }
-            var ret = JsonSerializer.Deserialize<List<MarketApi.EconomicEvent>>($"{apiResponse.Content}");
+            var ret = JsonSerializer.Deserialize<List<EconomicEvent>>($"{apiResponse.Content}");
             if (ret == null)
             {
                 throw new Exception("Deserialization of EconomicEvent list failed, null returned");
@@ -276,7 +278,7 @@ namespace EodNetApi
             return ret;
         }
 
-        public async Task<List<MarketApi.EarningsCalendarItem>> GetCalendarEarningsAsync(
+        public async Task<List<EarningsCalendarItem>> GetCalendarEarningsAsync(
             DateOnly from,
             DateOnly to,
             IReadOnlyList<string> symbols,
@@ -321,18 +323,18 @@ namespace EodNetApi
             }
             if (string.IsNullOrWhiteSpace(apiResponse.Content) || apiResponse.Content == "[]")
             {
-                return new List<MarketApi.EarningsCalendarItem>();
+                return new List<EarningsCalendarItem>();
             }
-            var wrapper = JsonSerializer.Deserialize<MarketApi.EarningsCalendarResponse>($"{apiResponse.Content}");
+            var wrapper = JsonSerializer.Deserialize<EarningsCalendarResponse>($"{apiResponse.Content}");
             if (wrapper == null)
             {
                 throw new Exception("Deserialization of EarningsCalendarResponse failed, null returned");
             }
-            return wrapper.Earnings ?? new List<MarketApi.EarningsCalendarItem>();
+            return wrapper.Earnings ?? new List<EarningsCalendarItem>();
         }
 
 
-        public async Task<List<MarketApi.IntradayBar>> GetIntradayAsync(
+        public async Task<List<IntradayBar>> GetIntradayAsync(
             string symbol,
             string interval,
             long fromUnix,
@@ -372,9 +374,9 @@ namespace EodNetApi
             }
             if (string.IsNullOrWhiteSpace(apiResponse.Content) || apiResponse.Content == "[]")
             {
-                return new List<MarketApi.IntradayBar>();
+                return new List<IntradayBar>();
             }
-            var ret = JsonSerializer.Deserialize<List<MarketApi.IntradayBar>>($"{apiResponse.Content}");
+            var ret = JsonSerializer.Deserialize<List<IntradayBar>>($"{apiResponse.Content}");
             if (ret == null)
             {
                 throw new Exception("Deserialization of IntradayBar list failed, null returned");

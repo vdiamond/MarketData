@@ -1,5 +1,5 @@
 using LiteDB;
-using MarketApi;
+using EodHdExtract;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -40,14 +40,14 @@ namespace eodhd_download
 
     internal class Program
     {
-        internal static async Task<int> LoadFundamentalIndex(LiteDatabase db, EodNetApi.Client eodHd, params List<string> indices)
+        internal static async Task<int> LoadFundamentalIndex(LiteDatabase db, Client eodHd, params List<string> indices)
         {
             int totalAffected = 0;
             foreach (var exchangeSymbolId in indices)
             {
                 try
                 {
-                    var indicesColl = db.GetCollection<MarketApi.FundamentalIndex>("fundamental_indices");
+                    var indicesColl = db.GetCollection<FundamentalIndex>("fundamental_indices");
 
                     var sw = new Stopwatch();
                     sw.Start();
@@ -72,14 +72,14 @@ namespace eodhd_download
             }
             return totalAffected;
         }
-        internal static async Task<int> LoadFundamentalEtf(LiteDatabase db, EodNetApi.Client eodHd, params List<string> etfs)
+        internal static async Task<int> LoadFundamentalEtf(LiteDatabase db, Client eodHd, params List<string> etfs)
         {
             int totalAffected = 0;
             foreach (var exchangeSymbolId in etfs)
             {
                 try
                 {
-                    var etfsColl = db.GetCollection<MarketApi.FundamentalEtf>("fundamental_etfs");
+                    var etfsColl = db.GetCollection<FundamentalEtf>("fundamental_etfs");
 
                     var sw = new Stopwatch();
                     sw.Start();
@@ -104,14 +104,14 @@ namespace eodhd_download
             }
             return totalAffected;
         }
-        internal static async Task<int> LoadFundamentalStock(LiteDatabase db, EodNetApi.Client eodHd, params List<string> stocks)
+        internal static async Task<int> LoadFundamentalStock(LiteDatabase db, Client eodHd, params List<string> stocks)
         {
             int totalAffected = 0;
             foreach (var exchangeSymbolId in stocks)
             {
                 try
                 {
-                    var stocksColl = db.GetCollection<MarketApi.FundamentalStock>("fundamental_stocks");
+                    var stocksColl = db.GetCollection<FundamentalStock>("fundamental_stocks");
 
                     var sw = new Stopwatch();
                     sw.Start();
@@ -136,14 +136,14 @@ namespace eodhd_download
             }
             return totalAffected;
         }
-        internal static async Task<int> LoadExchangeSymbols(LiteDatabase db, EodNetApi.Client eodHd, params List<string> extractionGroups)
+        internal static async Task<int> LoadExchangeSymbols(LiteDatabase db, Client eodHd, params List<string> extractionGroups)
         {
             int totalAffected = 0;
             foreach (var group in extractionGroups)
             {
                 try
                 {
-                    var exchangeSymbolsColl = db.GetCollection<MarketApi.ExchangeSymbol>("exchange_symbols");
+                    var exchangeSymbolsColl = db.GetCollection<ExchangeSymbol>("exchange_symbols");
                     exchangeSymbolsColl.EnsureIndex("Symbol", x => x.Symbol, false);
                     exchangeSymbolsColl.EnsureIndex("Exchange", x => x.Exchange, false);
 
@@ -169,14 +169,14 @@ namespace eodhd_download
             }
             return totalAffected;
         }
-        internal static async Task<int> LoadEndOfDayHistoricalStockPrice(LiteDatabase db, EodNetApi.Client eodHd, DateTime startDate, DateTime endDate, params List<string> exchangeSymbolIds)
+        internal static async Task<int> LoadEndOfDayHistoricalStockPrice(LiteDatabase db, Client eodHd, DateTime startDate, DateTime endDate, params List<string> exchangeSymbolIds)
         {
             var totalAffected = 0;
             try
             {
                 if (exchangeSymbolIds.Count == 0) { return 0; }
 
-                var historicalDayPricesColl = db.GetCollection<MarketApi.HistoricalStockPrice>("historical_day_prices");
+                var historicalDayPricesColl = db.GetCollection<HistoricalStockPrice>("historical_day_prices");
                 historicalDayPricesColl.EnsureIndex("ExchangeSymbolId", x => x.ExchangeSymbolId, false);
 
                 var sw = new Stopwatch();
@@ -186,7 +186,7 @@ namespace eodhd_download
                     Console.WriteLine($"Processing (Historical Stock Prices) {i + 1}/{exchangeSymbolIds.Count}: {exchangeSymbolIds[i]}");
 
                     sw.Start();
-                    List<MarketApi.HistoricalStockPrice> historicalPricesEodHd = await eodHd.GetEndOfDayHistoricalPriceAsync(exchangeSymbolIds[i], EodNetApi.Client.Period.Day, EodNetApi.Client.Order.Ascending,
+                    List<HistoricalStockPrice> historicalPricesEodHd = await eodHd.GetEndOfDayHistoricalPriceAsync(exchangeSymbolIds[i], Client.Period.Day, Client.Order.Ascending,
                         DateOnly.FromDateTime(startDate), DateOnly.FromDateTime(endDate));
                     historicalPricesEodHd.ForEach(x => x.ExchangeSymbolId = exchangeSymbolIds[i]);
                     sw.Stop();
@@ -209,14 +209,14 @@ namespace eodhd_download
 
             return totalAffected;
         }
-        internal static async Task<int> LoadSentimentsData(LiteDatabase db, EodNetApi.Client eodHd, DateTime startDate, DateTime endDate, params List<string> exchangeSymbolIds)
+        internal static async Task<int> LoadSentimentsData(LiteDatabase db, Client eodHd, DateTime startDate, DateTime endDate, params List<string> exchangeSymbolIds)
         {
             var totalAffected = 0;
             try
             {
                 if (exchangeSymbolIds.Count == 0) { return 0; }
 
-                var sentimentsDataColl = db.GetCollection<MarketApi.SentimentsData>("sentiments_data");
+                var sentimentsDataColl = db.GetCollection<SentimentsData>("sentiments_data");
                 sentimentsDataColl.EnsureIndex("SentimentsDataId", x => x.SentimentsDataId, false);
 
                 var sw = new Stopwatch();
@@ -246,7 +246,7 @@ namespace eodhd_download
         internal static async Task<List<string>> GetETFSymbols(LiteDatabase db, string etf)
         {
             // Get ETF record
-            var etfsColl = db.GetCollection<MarketApi.FundamentalEtf>("fundamental_etfs");
+            var etfsColl = db.GetCollection<FundamentalEtf>("fundamental_etfs");
             var etfData = etfsColl.FindById(etf);
             if (etfData == null) { throw new Exception($"Attempting to load data for Holdings for ETF({etf}) which does not exist in database"); }
 
@@ -258,7 +258,7 @@ namespace eodhd_download
         internal static async Task<List<ComponentIndex>> GetIndexSymbols(LiteDatabase db, string index)
         {
             // Get Index record
-            var indicesColl = db.GetCollection<MarketApi.FundamentalIndex>("fundamental_indices");
+            var indicesColl = db.GetCollection<FundamentalIndex>("fundamental_indices");
             var indexData = indicesColl.FindById(index);
             if (indexData == null) { throw new Exception($"Attempting to load data for the components of Index({index}) which does not exist in database"); }
 
@@ -267,21 +267,21 @@ namespace eodhd_download
 
             return indicesParams;
         }
-        internal static IDynamicTable ExtractHistoricalStockPrices(ILiteCollection<MarketApi.HistoricalStockPrice> coll, string exchangeSymbolId, DateTime fromDate)
+        internal static IDynamicTable ExtractHistoricalStockPrices(ILiteCollection<HistoricalStockPrice> coll, string exchangeSymbolId, DateTime fromDate)
         {
             var fromDateA = fromDate.ToString("yyyy-MM-dd");
             var results = coll.Find(Query.And(Query.EQ("ExchangeSymbolId", exchangeSymbolId), Query.GTE("Date", fromDateA))).OrderBy(x => x.Date).ToList();
             var table = results.ToTable();
             return table;
         }
-        internal static IDynamicTable ExtractSentimentsData(ILiteCollection<MarketApi.SentimentsData> coll, string exchangeSymbolId, DateTime fromDate)
+        internal static IDynamicTable ExtractSentimentsData(ILiteCollection<SentimentsData> coll, string exchangeSymbolId, DateTime fromDate)
         {
             var fromDateA = fromDate.ToString("yyyy-MM-dd");
             var results = coll.Find(Query.And(Query.EQ("ExchangeSymbolId", exchangeSymbolId), Query.GTE("Date", fromDateA))).OrderBy(x => x.Date).ToList();
             var table = results.ToTable();
             return table;
         }
-        internal static void IncludeHistoricalStockPrices(DateKeyedTableBuilder tableBuilder, ILiteCollection<MarketApi.HistoricalStockPrice> coll, List<string> exchangeSymbolIds, DateTime fromDate, bool closeOnly, bool volume)
+        internal static void IncludeHistoricalStockPrices(DateKeyedTableBuilder tableBuilder, ILiteCollection<HistoricalStockPrice> coll, List<string> exchangeSymbolIds, DateTime fromDate, bool closeOnly, bool volume)
         {
             foreach (var exchangeSymbolId in exchangeSymbolIds)
             {
@@ -310,7 +310,7 @@ namespace eodhd_download
                 }
             }
         }
-        internal static void IncludeSentimentsData(DateKeyedTableBuilder tableBuilder, ILiteCollection<MarketApi.SentimentsData> coll, List<string> exchangeSymbolIds, DateTime fromDate, bool count)
+        internal static void IncludeSentimentsData(DateKeyedTableBuilder tableBuilder, ILiteCollection<SentimentsData> coll, List<string> exchangeSymbolIds, DateTime fromDate, bool count)
         {
             foreach (var exchangeSymbolId in exchangeSymbolIds)
             {
@@ -357,7 +357,7 @@ namespace eodhd_download
                     throw new InvalidOperationException(
                         "EODHD API token is not set. Set the EODHD_API_TOKEN environment variable before running.");
                 }
-                var eodHdEvents = new EodNetApi.Client(ApiToken, timeout: 60000);
+                var eodHdEvents = new Client(ApiToken, timeout: 60000);
                 await EventCalendar.WriteEventFlagsAsync(eodHdEvents, extractCsv, eventsCsv, eventTypesCsv);
                 return;
             }
@@ -366,7 +366,7 @@ namespace eodhd_download
             {
                 var apiTokenEarn = RequireApiToken();
                 var earningsCsv = EnvOrDefault("MARKETDATA_EARNINGS_CSV", @"D:\grokbot\qqq_member_earnings.csv");
-                var eodHdEarn = new EodNetApi.Client(apiTokenEarn, timeout: 120000);
+                var eodHdEarn = new Client(apiTokenEarn, timeout: 120000);
                 var earnResult = await EarningsCalendar.WriteEarningsFlagsAsync(eodHdEarn, extractCsv, earningsCsv);
                 Console.WriteLine(
                     $"Earnings calendar: dump_rows={earnResult.DumpRows} extract_rows={earnResult.DataRows} evt_earn=1 {earnResult.EarnFlags} bmo={earnResult.BmoFlags} amc={earnResult.AmcFlags} skipped={string.Join(",", earnResult.SkippedTickers)} forbidden={earnResult.Forbidden}");
@@ -382,7 +382,7 @@ namespace eodhd_download
             {
                 var apiTokenIntra = RequireApiToken();
                 var dumpCsv = EnvOrDefault("MARKETDATA_QQQ_INTRADAY_CSV", @"D:\grokbot\qqq_intraday_1h.csv");
-                var eodHdIntra = new EodNetApi.Client(apiTokenIntra, timeout: 300000);
+                var eodHdIntra = new Client(apiTokenIntra, timeout: 300000);
                 var intraResult = await QqqIntraday.WriteAsync(eodHdIntra, extractCsv, dumpCsv);
                 Console.WriteLine(
                     $"QQQ 1h: dump_rows={intraResult.DumpRows} extract_rows={intraResult.ExtractRows} h1={intraResult.FirstHourNonempty} hlast={intraResult.LastHourNonempty} forbidden={intraResult.Forbidden} too_short={intraResult.HistoryTooShort} joined={intraResult.Joined}");
@@ -398,7 +398,7 @@ namespace eodhd_download
             {
                 var apiTokenPrices = RequireApiToken();
                 using var dbPrices = new LiteDatabase(dbPath);
-                var eodHdPrices = new EodNetApi.Client(apiTokenPrices, timeout: 60000);
+                var eodHdPrices = new Client(apiTokenPrices, timeout: 60000);
                 var symbols = new List<string>(loadPricesOnly);
                 Console.WriteLine($"Loading prices only for {symbols.Count} symbol(s): {string.Join(", ", symbols)}");
                 var totalAffected = 0;
@@ -416,7 +416,7 @@ namespace eodhd_download
             if (joinPrices != null)
             {
                 using var dbJoin = new LiteDatabase(dbPath);
-                var hspColl = dbJoin.GetCollection<MarketApi.HistoricalStockPrice>("historical_day_prices");
+                var hspColl = dbJoin.GetCollection<HistoricalStockPrice>("historical_day_prices");
                 var rows = ExtractJoin.JoinHistoricalPricesOntoExtract(
                     hspColl,
                     extractCsv,
@@ -431,7 +431,7 @@ namespace eodhd_download
             if (HasFlag(args, "--join-vix-terms"))
             {
                 using var dbJoin = new LiteDatabase(dbPath);
-                var hspColl = dbJoin.GetCollection<MarketApi.HistoricalStockPrice>("historical_day_prices");
+                var hspColl = dbJoin.GetCollection<HistoricalStockPrice>("historical_day_prices");
                 var vixTerms = new List<string> { "VIX1Y.INDX", "VIX6M.INDX" };
                 var rows = ExtractJoin.JoinHistoricalPricesOntoExtract(
                     hspColl, extractCsv, vixTerms, DateTime.Now.AddDays(-10000));
@@ -444,7 +444,7 @@ namespace eodhd_download
                 var apiTokenMacro = RequireApiToken();
                 var sidecarCsv = EnvOrDefault("MARKETDATA_MACRO_CSV", @"D:\grokbot\us_macro_indicators.csv");
                 var seriesDir = EnvOrDefault("MARKETDATA_MACRO_DIR", @"D:\grokbot\macro");
-                var eodHdMacro = new EodNetApi.Client(apiTokenMacro, timeout: 60000);
+                var eodHdMacro = new Client(apiTokenMacro, timeout: 60000);
                 Console.WriteLine("Fetching USA macro indicators (alpha-3 USA).");
                 var fetch = await MacroIndicators.FetchUsaAsync(eodHdMacro);
                 if (fetch.Forbidden)
@@ -476,7 +476,7 @@ namespace eodhd_download
                     "EODHD API token is not set. Set the EODHD_API_TOKEN environment variable before running.");
             }
 
-            var eodHdNew = new EodNetApi.Client(ApiToken);
+            var eodHdNew = new Client(ApiToken);
 
             if (DoLoadLookup)
             {
@@ -582,10 +582,10 @@ namespace eodhd_download
                 var tableBuilder = new DateKeyedTableBuilder(DateTime.Now.AddDays(-daysBack), DateTime.Now,
                     "Date", DayOfWeek.Monday, DayOfWeek.Tuesday, DayOfWeek.Wednesday, DayOfWeek.Thursday, DayOfWeek.Friday);
 
-                var hspColl = db.GetCollection<MarketApi.HistoricalStockPrice>("historical_day_prices");
+                var hspColl = db.GetCollection<HistoricalStockPrice>("historical_day_prices");
                 IncludeHistoricalStockPrices(tableBuilder, hspColl, priceExchangeSymbolList, startDate, false, true);
 
-                var sdColl = db.GetCollection<MarketApi.SentimentsData>("sentiments_data");
+                var sdColl = db.GetCollection<SentimentsData>("sentiments_data");
                 IncludeSentimentsData(tableBuilder, sdColl, sentExchangeSymbolList, startDate, true);
 
                 // Recode MAHN/MALN vendor 0.01 count floor to 0.0, then fill blanks and write.
@@ -598,7 +598,7 @@ namespace eodhd_download
             if (DoWriteSymbolsALL)
             {
                 // Write out symbol file
-                var symbolsColl = db.GetCollection<MarketApi.ExchangeSymbol>("exchange_symbols");
+                var symbolsColl = db.GetCollection<ExchangeSymbol>("exchange_symbols");
                 var results = symbolsColl.FindAll().ToList();
                 results.ForEach(x => { x.Country = (string.IsNullOrEmpty(x.Country) ? "" : x.Country); x.Name = (string.IsNullOrEmpty(x.Name) ? "" : x.Name); });
                 var table = results.ToTable();
@@ -684,7 +684,7 @@ namespace eodhd_download
         }
 
         static async Task<(int Affected, string UsedKey, string Note)> TryLoadPricesWithUsFallback(
-            LiteDatabase db, EodNetApi.Client eodHd, string symbol)
+            LiteDatabase db, Client eodHd, string symbol)
         {
             var (affected, err) = await TryLoadOneSymbol(db, eodHd, symbol);
             if (err == null && affected > 0)
@@ -718,7 +718,7 @@ namespace eodhd_download
                 return null;
             }
             var ticker = parts[0];
-            var coll = db.GetCollection<MarketApi.ExchangeSymbol>("exchange_symbols");
+            var coll = db.GetCollection<ExchangeSymbol>("exchange_symbols");
             foreach (var match in coll.Find(x => x.Symbol == ticker))
             {
                 var key = $"{match.Symbol}.{match.Exchange}";
@@ -732,7 +732,7 @@ namespace eodhd_download
         }
 
         static async Task<(int Affected, string? Error)> TryLoadOneSymbol(
-            LiteDatabase db, EodNetApi.Client eodHd, string symbol)
+            LiteDatabase db, Client eodHd, string symbol)
         {
             try
             {

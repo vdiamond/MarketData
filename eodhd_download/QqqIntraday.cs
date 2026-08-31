@@ -2,7 +2,7 @@ using System.Globalization;
 using System.Net;
 using System.Net.Http;
 using System.Text;
-using MarketApi;
+using EodHdExtract;
 using TableCsv;
 
 namespace eodhd_download;
@@ -169,7 +169,7 @@ public static class QqqIntraday
     }
 
     public static async Task<QqqIntradayFetchResult> FetchAsync(
-        EodNetApi.Client client,
+        Client client,
         DateOnly from,
         DateOnly to,
         CancellationToken ct = default)
@@ -326,7 +326,7 @@ public static class QqqIntraday
     }
 
     public static async Task<QqqIntradayRunResult> WriteAsync(
-        EodNetApi.Client client,
+        Client client,
         string extractPath,
         string dumpPath,
         DateOnly? from = null,
@@ -456,7 +456,7 @@ public static class QqqIntraday
     }
 
     static async Task<List<IntradayBar>> FetchWindowsAsync(
-        EodNetApi.Client client,
+        Client client,
         DateOnly from,
         DateOnly to,
         CancellationToken ct)
@@ -489,7 +489,7 @@ public static class QqqIntraday
     }
 
     static async Task<List<IntradayBar>> FetchWindowAsync(
-        EodNetApi.Client client,
+        Client client,
         DateOnly from,
         DateOnly to,
         CancellationToken ct)

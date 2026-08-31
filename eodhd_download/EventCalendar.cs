@@ -1,6 +1,6 @@
 using System.Globalization;
 using System.Text;
-using MarketApi;
+using EodHdExtract;
 using TableCsv;
 
 namespace eodhd_download;
@@ -262,7 +262,7 @@ public static class EventCalendar
     }
 
     public static async Task<List<EconomicEvent>> FetchAllUsEventsAsync(
-        EodNetApi.Client client,
+        Client client,
         DateOnly from,
         DateOnly to,
         CancellationToken ct = default)
@@ -286,7 +286,7 @@ public static class EventCalendar
     }
 
     static async Task FetchWindowRecursive(
-        EodNetApi.Client client,
+        Client client,
         DateOnly from,
         DateOnly to,
         List<EconomicEvent> all,
@@ -524,7 +524,7 @@ public static class EventCalendar
     }
 
     public static async Task<EventJoinResult> WriteEventFlagsAsync(
-        EodNetApi.Client client,
+        Client client,
         string extractPath,
         string eventsPath,
         string typesPath,

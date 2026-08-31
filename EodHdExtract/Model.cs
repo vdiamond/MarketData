@@ -1,11 +1,10 @@
 ﻿
-using LiteDB;
 using System;
 using System.Collections.Generic;
 using System.Text;
 using System.Text.Json.Serialization;
 
-namespace MarketApi
+namespace EodHdExtract
 {
     public enum DataTypeEnum { INDEX, FUND, BOND, Common_Stock, ETF, Mutual_Fund, Notes, Preferred_Stock, Warrant, Unit }
     public enum CountryCodeISO3Enum
@@ -101,6 +100,8 @@ namespace MarketApi
 
     public class MacroIndicator
     {
+        [JsonPropertyName("MacroIndicatorId")]
+        public string MacroIndicatorId => $"{CountryCode}.{Indicator}.{Date}";
         [JsonPropertyName("CountryCode")]
         public string CountryCode { get; set; }
         [JsonPropertyName("CountryName")]
@@ -116,6 +117,8 @@ namespace MarketApi
     }
     public class EconomicEvent
     {
+        [JsonPropertyName("EconomicEventId")]
+        public string EconomicEventId => $"{Country}.{Type}.{Date}.{Comparison}.{Period}";
         [JsonPropertyName("type")]
         public string Type { get; set; }
         [JsonPropertyName("comparison")]
@@ -139,6 +142,8 @@ namespace MarketApi
     }
     public class EarningsCalendarResponse
     {
+        [JsonPropertyName("EarningsCalendarResponseId")]
+        public string EarningsCalendarResponseId => $"{From}.{To}.{Symbols}";
         [JsonPropertyName("type")]
         public string Type { get; set; }
         [JsonPropertyName("description")]
@@ -154,6 +159,8 @@ namespace MarketApi
     }
     public class EarningsCalendarItem
     {
+        [JsonPropertyName("EarningsCalendarItemId")]
+        public string EarningsCalendarItemId => $"{Code}.{ReportDate}.{Date}.{Period}";
         [JsonPropertyName("code")]
         public string Code { get; set; }
         [JsonPropertyName("report_date")]
@@ -177,6 +184,8 @@ namespace MarketApi
     }
     public class IntradayBar
     {
+        [JsonPropertyName("IntradayBarId")]
+        public string IntradayBarId => Timestamp != 0 ? Timestamp.ToString() : Datetime;
         [JsonPropertyName("timestamp")]
         public long Timestamp { get; set; }
         [JsonPropertyName("gmtoffset")]

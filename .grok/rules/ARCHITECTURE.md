@@ -15,9 +15,9 @@ Read this file together with `AGENTS.md` and `coding-standards.md` before changi
 
 MarketData is a **.NET market-data ingestion, extract, and feature-transform** system. It:
 
-1. Calls external market data APIs (currently **EODHD**).
-2. Deserializes responses into **domain models**.
-3. Persists them in a local **LiteDB** document store.
+1. Calls external market data APIs (currently **EODHD**) via reusable **EodHdExtract**.
+2. Deserializes responses into **extract models** (`EodHdExtract` types).
+3. Persists them in a local **LiteDB** document store (`eodhd_download` only).
 4. Builds **date-keyed tabular extracts** (via DynamicTable) and writes **CSV** outputs.
 5. Applies **technical-analysis feature transforms** on extract CSVs for prediction / research.
 6. Computes **grouped descriptive statistics** on the transform feature CSV (`eodhd_statistics`).
@@ -28,7 +28,8 @@ It is primarily a set of **console ETL pipelines**, not a long-running web servi
 |---------|------------|
 | Language / runtime | C#; all solution projects target **net10.0** |
 | HTTP / WebSocket | Custom `RestClient` library (BCL `HttpClient` / `ClientWebSocket`) |
-| Local persistence | **LiteDB** (ingest only) |
+| EODHD extract | **EodHdExtract** class library (`Client` + JSON models; no LiteDB) |
+| Local persistence | **LiteDB** (ingest / `eodhd_download` only) |
 | Tabular extract / CSV | External **DynamicTable** projects (`Table`, `TableCsv`, `TableExtension`) |
 | Technical indicators | External **TechnicalIndicators** / `TALib` (transform only) |
 | Statistics | Console report over transform CSV (`eodhd_statistics`; DynamicTable only) |
@@ -48,15 +49,23 @@ MarketData/
 ├── RestClient/                  # Provider-agnostic HTTP + WebSocket client library
 │   ├── RestClientApi.cs
 │   └── RestClientSocket.cs
-├── eodhd_download/              # EODHD download console app + domain models + orchestration
-│   ├── eodhd_download.slnx      # Ingest/extract solution
-│   ├── Program.cs               # Pipeline orchestration (load / extract / export)
-│   ├── Client.cs                # EODHD API adapter (namespace EodNetApi)
-│   ├── Model.cs                 # Core MarketApi entities (exchange, symbol, prices, sentiment)
+├── EodHdExtract/                # Reusable EODHD extract library (no LiteDB)
+│   ├── EodHdExtract.csproj
+│   ├── Client.cs                # EODHD API adapter
+│   ├── Model.cs                 # Core extract entities (exchange, symbol, prices, sentiment, calendars)
 │   ├── FundamentalStock.cs      # Stock fundamentals DTOs
 │   ├── FundamentalEtf.cs        # ETF fundamentals DTOs
-│   ├── FundamentalIndex.cs      # Index fundamentals DTOs
-│   └── ExtractUtil.cs           # Date-range table helpers, fill-forward
+│   └── FundamentalIndex.cs      # Index fundamentals DTOs
+├── eodhd_download/              # EODHD download console: orchestration, LiteDB, CSV extract
+│   ├── eodhd_download.slnx      # Ingest/extract solution
+│   ├── Program.cs               # Pipeline orchestration (load / extract / export)
+│   ├── ExtractUtil.cs           # Date-range table helpers, fill-forward
+│   ├── ExtractJoin.cs           # Join stored prices onto an existing extract CSV
+│   ├── EventCalendar.cs         # Economic-event CSV flags (uses EodHdExtract.Client)
+│   ├── EarningsCalendar.cs      # Earnings-calendar CSV flags
+│   ├── MacroIndicators.cs       # USA macro dump/join
+│   └── QqqIntraday.cs           # QQQ 1h first/last hour join
+├── MarketData.Tests/            # Regression tests (download helpers + EodHdExtract contracts)
 ├── eodhd_transform/             # Feature-engineering console app (CSV → TA features → CSV)
 │   ├── eodhd_transform.slnx     # Transform solution
 │   ├── eodhd_transform.csproj
@@ -78,7 +87,7 @@ MarketData/
 
 | Solution | Projects |
 |----------|----------|
-| `eodhd_download/eodhd_download.slnx` | RestClient, eodhd_download, DynamicTable |
+| `eodhd_download/eodhd_download.slnx` | RestClient, EodHdExtract, eodhd_download, MarketData.Tests, DynamicTable |
 | `eodhd_transform/eodhd_transform.slnx` | eodhd_transform, DynamicTable, TALib |
 | `eodhd_statistics/eodhd_statistics.slnx` | eodhd_statistics, DynamicTable |
 
@@ -95,7 +104,7 @@ source_code/
 
 ## 3. Logical Layers & Namespaces
 
-Keep these boundaries clear. Dependencies should point **inward** toward domain models and **outward** only for I/O. Transform is a **downstream consumer of extract CSV**; it does not depend on LiteDB, RestClient, or MarketApi models. Statistics is a **downstream consumer of transform CSV**; it does not depend on LiteDB, RestClient, MarketApi, or TALib.
+Keep these boundaries clear. Dependencies should point **inward** toward extract models and **outward** only for I/O. Transform is a **downstream consumer of extract CSV**; it does not depend on LiteDB, RestClient, or EodHdExtract. Statistics is a **downstream consumer of transform CSV**; it does not depend on LiteDB, RestClient, EodHdExtract, or TALib.
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -106,16 +115,16 @@ Keep these boundaries clear. Dependencies should point **inward** toward domain 
          ┌───────────────────┼───────────────────┐
          ▼                   ▼                   ▼
 ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────────┐
-│  Provider API   │  │  Persistence    │  │  Extract / Export   │
-│  EodNetApi      │  │  LiteDB         │  │  DateKeyedTableBuilder│
-│  .Client        │  │  collections    │  │  ExtractUtil, CSV    │
+│  EodHdExtract   │  │  Persistence    │  │  Extract / Export   │
+│  Client         │  │  LiteDB         │  │  DateKeyedTableBuilder│
+│  (no LiteDB)    │  │  collections    │  │  ExtractUtil, CSV    │
 └────────┬────────┘  └────────▲────────┘  └──────────▲──────────┘
          │                    │                      │
          │           ┌────────┴────────┐             │ CSV hand-off
-         └──────────►│  MarketApi      │◄────────────┘      │
-                     │  domain models  │                     │
+         └──────────►│  EodHdExtract   │◄────────────┘      │
+                     │  JSON models    │                     │
                      └────────▲────────┘                     ▼
-                              │ maps JSON / BSON   ┌─────────────────────────┐
+                              │ {ClassName}Id     ┌─────────────────────────┐
          ┌────────────────────┴────────────────┐   │  Feature transform       │
          │  Infrastructure: RestClient          │   │  eodhd_transform         │
          │  RestClientApi, QueryParameters,     │   │  DynamicTable + TALib    │
@@ -133,21 +142,20 @@ Keep these boundaries clear. Dependencies should point **inward** toward domain 
 | Namespace / area | Responsibility | Depends on |
 |------------------|----------------|------------|
 | **`RestClient`** | Generic REST GET client, query-string building, optional JSON deserialize, WebSocket client | BCL only |
-| **`EodNetApi`** | EODHD-specific endpoints, API key defaults, response shaping into `MarketApi` types | `RestClient`, `MarketApi` |
-| **`MarketApi`** | Domain / DTO models shared by API, LiteDB, and extracts | LiteDB attributes, `System.Text.Json` |
-| **`eodhd_download`** | Pipeline orchestration, load helpers, date-keyed extract builders, CSV export | All of the above + DynamicTable |
+| **`EodHdExtract`** | EODHD-specific endpoints (`Client`), JSON models with `[JsonPropertyName]` and `{ClassName}Id` | `RestClient` only (no LiteDB) |
+| **`eodhd_download`** | Pipeline orchestration, LiteDB persistence, date-keyed extract builders, CSV export | EodHdExtract, LiteDB, DynamicTable |
 | **`eodhd_transform`** | Load extract CSV, compute technical indicators / normalized features, write feature CSV | DynamicTable, TALib only |
 | **`eodhd_statistics`** | Load transform feature CSV, group rows, print descriptive statistics | DynamicTable only |
 
 ### Layer rules
 
 1. **`RestClient` must stay provider-agnostic.** No EODHD URLs, tokens, or market domain types.
-2. **Provider adapters** (e.g. `EodNetApi.Client`) own endpoint paths, query conventions, and mapping quirks for that vendor.
-3. **`MarketApi` models are the shared contract** between download, storage, and extract. Prefer evolving models carefully; they are dual-purpose (JSON + LiteDB).
-4. **Orchestration stays in the app project** (`Program` load/extract methods). Do not push pipeline policy into `RestClient`.
-5. **Do not reverse dependencies** (e.g. RestClient must not reference LiteDB or MarketApi).
-6. **`eodhd_transform` must not take a dependency on LiteDB, RestClient, EodNetApi, or MarketApi.** It consumes extract CSV and external TA/table libraries only. Keep the CSV column contract between download extract and transform explicit and stable.
-7. **`eodhd_statistics` must not take a dependency on LiteDB, RestClient, EodNetApi, MarketApi, or TALib.** It consumes transform feature CSV and DynamicTable only. Keep the CSV column contract between transform and statistics explicit and stable.
+2. **`EodHdExtract.Client`** owns EODHD endpoint paths, query conventions, and mapping quirks. Token is supplied by the caller (env `EODHD_API_TOKEN`); never hard-code it.
+3. **`EodHdExtract` models are the extract contract.** Every Client-return type has `[JsonPropertyName]` on JSON fields and a `{ClassName}Id` property that returns a unique key. **Do not use `[BsonId]`.** `EodHdExtract.csproj` must not reference LiteDB. Nested fundamentals DTOs keep JSON names; document-root / Client-return types carry `{ClassName}Id` so LiteDB can store them later by convention.
+4. **Orchestration and persistence stay in `eodhd_download`.** Loaders, collection mapping, extract-to-CSV, event/earnings/macro/intraday CSV joins remain in the app. The app consumes EodHdExtract then upserts into LiteDB.
+5. **Do not reverse dependencies** (RestClient must not reference LiteDB or EodHdExtract; EodHdExtract must not reference LiteDB or `eodhd_download`).
+6. **`eodhd_transform` must not take a dependency on LiteDB, RestClient, or EodHdExtract.** It consumes extract CSV and external TA/table libraries only. Keep the CSV column contract between download extract and transform explicit and stable.
+7. **`eodhd_statistics` must not take a dependency on LiteDB, RestClient, EodHdExtract, or TALib.** It consumes transform feature CSV and DynamicTable only. Keep the CSV column contract between transform and statistics explicit and stable.
 
 ---
 
@@ -162,13 +170,13 @@ EODHD HTTPS API
 RestClientApi (HTTP + query params + ApiResponse)
       │
       ▼
-EodNetApi.Client (typed methods, deserialize / reshape)
+EodHdExtract.Client (typed methods, deserialize / reshape)
       │
       ▼
-MarketApi entities
+EodHdExtract entities (`{ClassName}Id` + `[JsonPropertyName]`)
       │
       ▼
-LiteDB (upsert in transactions; composite string IDs)
+LiteDB in eodhd_download (upsert in transactions; composite string IDs)
       │
       ├──► Lookup / composite resolution (ETF holdings, index components)
       │
@@ -247,16 +255,18 @@ Instruments are identified as **`{Symbol}.{Exchange}`** (e.g. `QQQ.US`, `GSPC.IN
 - Instrument identity stays `{Symbol}.{Exchange}`.
 - LiteDB document keys follow LiteDB's own convention: a property named `Id`, or `{ClassName}Id` (for example `FundamentalStockId` on `FundamentalStock`). **Do not use `[BsonId]`.**
 - Current document ids: `ExchangeId`, `ExchangeSymbolId`, `FundamentalStockId`, `FundamentalEtfId`, `FundamentalIndexId`, `HistoricalStockPriceId`, `SentimentsDataId`. Price and sentiment ids remain `{ExchangeSymbolId}.{Date}`.
-- That naming is what lets EODHD extract models stay free of the LiteDB library. Splitting extract from store is a planned later step.
+- Additional Client-return keys (not necessarily persisted today): `MacroIndicatorId`, `EconomicEventId`, `EarningsCalendarResponseId`, `EarningsCalendarItemId`, `IntradayBarId`.
+- That naming is what lets **EodHdExtract** stay free of the LiteDB library while `eodhd_download` still stores the same types.
 - When parsing symbols for column prefixes, expect exactly two segments; invalid formats should fail fast.
 
 ### Dual-purpose models
 
-`MarketApi` types:
+`EodHdExtract` types:
 
 - Deserialize from EODHD JSON via `[JsonPropertyName(...)]`.
-- Persist to LiteDB via collection mapping. LiteDB treats `Id` or `{ClassName}Id` as the document key. Never use `[BsonId]` on these models, so extract from EODHD can later split from the LiteDB library.
-- Convert to tables via DynamicTable extensions (`ToTable()`).
+- Expose a `{ClassName}Id` unique key so LiteDB can persist them by convention without a LiteDB attribute.
+- Persist to LiteDB **only from `eodhd_download`** via collection mapping. Never use `[BsonId]`.
+- Convert to tables via DynamicTable extensions (`ToTable()`) in the download app.
 
 When adding a field, consider **all three** consumers (API JSON shape, storage identity/indexes, extract columns).
 
@@ -272,13 +282,13 @@ When adding a field, consider **all three** consumers (API JSON shape, storage i
 
 ### 6.1 Provider adapter (facade)
 
-`EodNetApi.Client` wraps `RestClientApi`:
+`EodHdExtract.Client` wraps `RestClientApi`:
 
 - Injects default query params (`api_token`, `fmt=json`).
 - Exposes intent-named methods (`GetFundamentalsStockAsync`, `GetEndOfDayHistoricalPriceAsync`, …).
-- Checks `ApiResponse.Ok`, throws meaningful errors, deserializes / reshapes into `MarketApi` types.
+- Checks `ApiResponse.Ok`, throws meaningful errors, deserializes / reshapes into `EodHdExtract` types.
 
-**When extending:** add new public methods on the provider client for new endpoints; do not call EODHD URLs from orchestration.
+**When extending:** add new public methods on `EodHdExtract.Client` for new endpoints; do not call EODHD URLs from orchestration.
 
 ### 6.2 Generic REST client + result envelope
 
@@ -359,16 +369,16 @@ These principles govern design decisions. When they conflict with short-term con
 | Do | Don't |
 |----|--------|
 | Keep HTTP plumbing in `RestClient` | Put EODHD paths or LiteDB into `RestClient` |
-| Keep vendor mapping in a provider client | Scatter URL fragments across `Program` |
-| Keep models in `MarketApi` | Duplicate near-identical DTOs per layer without reason |
-| Keep orchestration in the app | Hide multi-stage ETL policy inside library types |
+| Keep vendor mapping in `EodHdExtract.Client` | Scatter URL fragments across `Program` |
+| Keep extract models in `EodHdExtract` with no LiteDB reference | Put `[BsonId]` or a LiteDB package on extract types |
+| Keep orchestration and LiteDB in the app | Hide multi-stage ETL policy inside EodHdExtract |
 | Keep feature engineering in `eodhd_transform` | Re-download or re-query LiteDB inside transform |
 | Keep grouped statistics in `eodhd_statistics` | Recompute TA features or re-query LiteDB inside statistics |
-| Pass data download → extract CSV → transform CSV → statistics | Couple transform or statistics to MarketApi or RestClient |
+| Pass data download → extract CSV → transform CSV → statistics | Couple transform or statistics to EodHdExtract or RestClient |
 
 ### 7.2 Single shared domain contract
 
-- Prefer one set of models (`MarketApi`) for API ↔ store ↔ extract.
+- Prefer one set of models (`EodHdExtract`) for API ↔ store ↔ extract.
 - Identity rules (`ExchangeSymbolId`, date composite keys) must stay consistent across load and query.
 - Document breaking changes to ID formats; they invalidate stored data.
 
@@ -400,8 +410,9 @@ These principles govern design decisions. When they conflict with short-term con
 - Do **not** add NuGet packages unless explicitly requested or already approved.
 - Stick to BCL, existing Microsoft.Extensions usage (if introduced later), LiteDB (already used in download), established DynamicTable references, and TechnicalIndicators/TALib for transform.
 - `RestClient` should remain dependency-free beyond the BCL.
-- `eodhd_transform` should stay free of LiteDB and network clients.
-- `eodhd_statistics` should stay free of LiteDB, network clients, and TALib.
+- `EodHdExtract` may reference `RestClient` only. No LiteDB package, no `using LiteDB`.
+- `eodhd_transform` should stay free of LiteDB, network clients, and EodHdExtract.
+- `eodhd_statistics` should stay free of LiteDB, network clients, EodHdExtract, and TALib.
 
 ### 7.8 Hybrid vertical slice / clean architecture
 
@@ -427,8 +438,8 @@ For larger features:
 
 | Goal | Approach |
 |------|----------|
-| New EODHD endpoint | Add method on `EodNetApi.Client`; add/extend `MarketApi` models; add load stage; optionally extract |
-| New data provider | New adapter project/namespace (mirror `EodNetApi`); reuse `RestClient` and `MarketApi` where shapes align |
+| New EODHD endpoint | Add method on `EodHdExtract.Client`; add/extend extract models with `{ClassName}Id` + `[JsonPropertyName]`; add load stage in `eodhd_download`; optionally extract |
+| New data provider | New adapter project/namespace (mirror `EodHdExtract`); reuse `RestClient` and extract models where shapes align |
 | New extract shape | Prefer `DateKeyedTableBuilder` / DynamicTable; avoid ad-hoc CSV string building; update transform if column contract changes |
 | New TA feature / label | Extend `eodhd_transform` series bindings and TALib chains; keep warm-up trim consistent with longest lookback; update statistics if it reads the new column |
 | New grouped statistic | Add a `Statistic` factory and register it in `eodhd_statistics` `Main`; reuse existing record groups |
@@ -450,7 +461,7 @@ For larger features:
 
 When adding a collection:
 
-1. Define the model in `MarketApi` with a stable `Id` or `{ClassName}Id` property. Do not use `[BsonId]`.
+1. Define the model in `EodHdExtract` with a stable `Id` or `{ClassName}Id` property and `[JsonPropertyName]` on JSON fields. Do not use `[BsonId]`.
 2. Name the collection with clear, plural snake-ish names consistent with the table above.
 3. Ensure indexes for fields used in filters and joins.
 4. Document the collection in this catalog.
@@ -479,8 +490,8 @@ These are factual characteristics of the current codebase; use them to plan impr
 5. **External siblings** — DynamicTable and TechnicalIndicators live outside this repo; coordinate contract changes with those repositories.
 6. **Three solution files** — download, transform, and statistics are separate apps/solutions sharing CSV convention, not project references between them.
 7. **Transform is script-like** — much of `eodhd_transform` is explicit column wiring in `Main`; acceptable for research iteration, but factor helpers if feature sets grow.
-8. **No automated test project yet** — when adding tests, place them in a dedicated test project and keep them free of live API keys.
-9. **Extract vs LiteDB** — `MarketApi` types still live in the download app that references LiteDB. A later step is to split EODHD extract models from the LiteDB library entirely. `{ClassName}Id` with no `[BsonId]` is the identity rule that makes that split possible.
+8. **Tests** — `MarketData.Tests` covers download helpers, transform contracts, and EodHdExtract identity/`{ClassName}Id` plus the no-LiteDB assembly check. Keep tests free of live API keys.
+9. **Extract vs LiteDB** — EODHD fetch/deserialize lives in **EodHdExtract** (no LiteDB). `eodhd_download` consumes that library and stores documents in LiteDB using `{ClassName}Id`. Nested fundamentals DTOs are JSON shapes, not separate LiteDB documents.
 
 ---
 
@@ -488,8 +499,8 @@ These are factual characteristics of the current codebase; use them to plan impr
 
 Use this list when reviewing your own or others' changes:
 
-- [ ] Does the change respect layer boundaries (RestClient / provider / MarketApi / download orchestration / transform / statistics)?
-- [ ] Are new models dual-purpose ready (JSON names, `Id`/`{ClassName}Id` LiteDB key, extract impact)? No `[BsonId]`.
+- [ ] Does the change respect layer boundaries (RestClient / EodHdExtract / download orchestration / transform / statistics)?
+- [ ] Are new extract models dual-purpose ready (JSON names, `Id`/`{ClassName}Id` key, extract impact)? No `[BsonId]`. No LiteDB in EodHdExtract.
 - [ ] Are identities and date formats consistent with existing composite keys?
 - [ ] Are LiteDB writes transactional and idempotent (upsert)?
 - [ ] Are async APIs cancellable?
@@ -498,11 +509,11 @@ Use this list when reviewing your own or others' changes:
 - [ ] Were secrets or machine-specific paths avoided (or clearly temporary and not expanded)?
 - [ ] If extract CSV columns changed, was `eodhd_transform` (or its contract docs) updated?
 - [ ] If transform feature CSV columns changed, was `eodhd_statistics` (or its contract docs) updated?
-- [ ] Does transform remain free of LiteDB / RestClient / MarketApi dependencies?
-- [ ] Does statistics remain free of LiteDB / RestClient / MarketApi / TALib dependencies?
+- [ ] Does transform remain free of LiteDB / RestClient / EodHdExtract dependencies?
+- [ ] Does statistics remain free of LiteDB / RestClient / EodHdExtract / TALib dependencies?
 
 ---
 
-**Last Updated:** August 30, 2026  
-**Version:** 1.4
+**Last Updated:** August 31, 2026  
+**Version:** 1.5
 )

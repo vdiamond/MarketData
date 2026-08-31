@@ -3,6 +3,7 @@ using System.Net;
 using System.Net.Http;
 using System.Text;
 using TableCsv;
+using EodHdExtract;
 
 namespace eodhd_download;
 
@@ -102,7 +103,7 @@ public static class MacroIndicators
     }
 
     public static async Task<MacroFetchResult> FetchUsaAsync(
-        EodNetApi.Client client,
+        Client client,
         IReadOnlyList<string>? keys = null,
         CancellationToken ct = default)
     {
@@ -266,7 +267,7 @@ public static class MacroIndicators
 
     #region private
 
-    static void WriteSeriesCsv(string path, List<MarketApi.MacroIndicator> rows)
+    static void WriteSeriesCsv(string path, List<MacroIndicator> rows)
     {
         using var writer = new StreamWriter(path, false, new UTF8Encoding(false));
         var csv = new CsvWriter(writer);
@@ -299,7 +300,7 @@ public static class MacroIndicators
 
 public sealed class MacroFetchResult
 {
-    public Dictionary<string, List<MarketApi.MacroIndicator>> Series { get; } = new(StringComparer.OrdinalIgnoreCase);
+    public Dictionary<string, List<MacroIndicator>> Series { get; } = new(StringComparer.OrdinalIgnoreCase);
     public List<string> MissingKeys { get; } = [];
     public List<string> EmptyKeys { get; } = [];
     public bool Forbidden { get; set; }

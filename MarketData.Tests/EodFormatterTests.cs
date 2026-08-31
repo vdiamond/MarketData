@@ -1,4 +1,4 @@
-using EodNetApi;
+using EodHdExtract;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using RestClient;
 

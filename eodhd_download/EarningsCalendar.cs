@@ -2,7 +2,7 @@ using System.Globalization;
 using System.Net;
 using System.Net.Http;
 using System.Text;
-using MarketApi;
+using EodHdExtract;
 using TableCsv;
 
 namespace eodhd_download;
@@ -121,7 +121,7 @@ public static class EarningsCalendar
     }
 
     public static async Task<EarningsFetchResult> FetchAsync(
-        EodNetApi.Client client,
+        Client client,
         IReadOnlyList<string> symbols,
         DateOnly from,
         DateOnly to,
@@ -153,7 +153,7 @@ public static class EarningsCalendar
     }
 
     static async Task FetchRecursive(
-        EodNetApi.Client client,
+        Client client,
         List<string> symbols,
         DateOnly from,
         DateOnly to,
@@ -463,7 +463,7 @@ public static class EarningsCalendar
     }
 
     public static async Task<EarningsJoinResult> WriteEarningsFlagsAsync(
-        EodNetApi.Client client,
+        Client client,
         string extractPath,
         string dumpPath,
         DateOnly? from = null,

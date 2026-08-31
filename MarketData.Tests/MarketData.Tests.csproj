@@ -15,6 +15,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\eodhd_download\eodhd_download.csproj" />
+    <ProjectReference Include="..\EodHdExtract\EodHdExtract.csproj" />
     <ProjectReference Include="..\eodhd_transform\eodhd_transform.csproj" />
     <ProjectReference Include="..\RestClient\RestClient.csproj" />
     <ProjectReference Include="..\..\DynamicTable\Table\Table\Table.csproj" />

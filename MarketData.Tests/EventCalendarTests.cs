@@ -1,5 +1,5 @@
 using eodhd_download;
-using MarketApi;
+using EodHdExtract;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace MarketData.Tests;

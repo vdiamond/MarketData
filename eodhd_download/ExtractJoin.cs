@@ -4,6 +4,7 @@ using LiteDB;
 using Table;
 using TableCsv;
 using TableExtension;
+using EodHdExtract;
 
 namespace eodhd_download;
 
@@ -16,7 +17,7 @@ public static class ExtractJoin
     public static readonly string[] OhlcvFields = ["Open", "Low", "High", "Close", "Volume"];
 
     public static int JoinHistoricalPricesOntoExtract(
-        ILiteCollection<MarketApi.HistoricalStockPrice> coll,
+        ILiteCollection<HistoricalStockPrice> coll,
         string extractPath,
         IReadOnlyList<string> exchangeSymbolIds,
         DateTime fromDate,
@@ -288,7 +289,7 @@ public static class ExtractJoin
     #region private
 
     static IDynamicTable ExtractHistoricalStockPrices(
-        ILiteCollection<MarketApi.HistoricalStockPrice> coll,
+        ILiteCollection<HistoricalStockPrice> coll,
         string exchangeSymbolId,
         DateTime fromDate)
     {
