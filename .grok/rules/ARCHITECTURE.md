@@ -245,8 +245,9 @@ Paths and feature flags in `Main` are **environment-specific**; treat them as co
 Instruments are identified as **`{Symbol}.{Exchange}`** (e.g. `QQQ.US`, `GSPC.INDX`).
 
 - Instrument identity stays `{Symbol}.{Exchange}`.
-- Each stored document has a type-specific JSON id (`ExchangeId`, `ExchangeSymbolId`, `FundamentalStockId`, `FundamentalEtfId`, `FundamentalIndexId`, `HistoricalStockPriceId`, `SentimentsDataId`) so EODHD extract models are not bound to LiteDB `[BsonId]`. Storage can assign LiteDB keys independently of the API DTO.
-- Price and sentiment document ids remain `{ExchangeSymbolId}.{Date}`.
+- LiteDB document keys follow LiteDB's own convention: a property named `Id`, or `{ClassName}Id` (for example `FundamentalStockId` on `FundamentalStock`). **Do not use `[BsonId]`.**
+- Current document ids: `ExchangeId`, `ExchangeSymbolId`, `FundamentalStockId`, `FundamentalEtfId`, `FundamentalIndexId`, `HistoricalStockPriceId`, `SentimentsDataId`. Price and sentiment ids remain `{ExchangeSymbolId}.{Date}`.
+- That naming is what lets EODHD extract models stay free of the LiteDB library. Splitting extract from store is a planned later step.
 - When parsing symbols for column prefixes, expect exactly two segments; invalid formats should fail fast.
 
 ### Dual-purpose models
@@ -254,7 +255,7 @@ Instruments are identified as **`{Symbol}.{Exchange}`** (e.g. `QQQ.US`, `GSPC.IN
 `MarketApi` types:
 
 - Deserialize from EODHD JSON via `[JsonPropertyName(...)]`.
-- Persist to LiteDB via collection mapping. Document ids are JSON-named fields on the model, not `[BsonId]`, so extract from EODHD can split from LiteDB store.
+- Persist to LiteDB via collection mapping. LiteDB treats `Id` or `{ClassName}Id` as the document key. Never use `[BsonId]` on these models, so extract from EODHD can later split from the LiteDB library.
 - Convert to tables via DynamicTable extensions (`ToTable()`).
 
 When adding a field, consider **all three** consumers (API JSON shape, storage identity/indexes, extract columns).
@@ -449,7 +450,7 @@ For larger features:
 
 When adding a collection:
 
-1. Define the model in `MarketApi` with a stable type-specific JSON id. Do not put `[BsonId]` on the EODHD DTO if the store key will be assigned separately.
+1. Define the model in `MarketApi` with a stable `Id` or `{ClassName}Id` property. Do not use `[BsonId]`.
 2. Name the collection with clear, plural snake-ish names consistent with the table above.
 3. Ensure indexes for fields used in filters and joins.
 4. Document the collection in this catalog.
@@ -473,12 +474,13 @@ These are factual characteristics of the current codebase; use them to plan impr
 
 1. **Orchestration is concentrated in `Program.cs`** — large surface in both `eodhd_download` and `eodhd_transform`; extract new types when a stage grows (loaders, extract writers, feature builders) without changing layer rules. `eodhd_statistics` already factors load / grouping / statistics / report types.
 2. **Target framework** — all projects (including `RestClient`, DynamicTable, and TALib references) target **net10.0**.
-3. **Secrets and paths** — hard-coded API token (download) and `D:\...` paths (download + transform) exist; treat removal as a priority when editing either `Main`. Prefer env vars / scripts for secrets.
+3. **Secrets and paths** — download reads `EODHD_API_TOKEN` from the environment (do not hard-code it). Default data paths are `D:\grokbot\...`; override with env vars. Prefer env vars / scripts for secrets.
 4. **Blocking waits** — some download pipeline stages use `.Wait()`; prefer full async main path when refactoring.
 5. **External siblings** — DynamicTable and TechnicalIndicators live outside this repo; coordinate contract changes with those repositories.
 6. **Three solution files** — download, transform, and statistics are separate apps/solutions sharing CSV convention, not project references between them.
 7. **Transform is script-like** — much of `eodhd_transform` is explicit column wiring in `Main`; acceptable for research iteration, but factor helpers if feature sets grow.
 8. **No automated test project yet** — when adding tests, place them in a dedicated test project and keep them free of live API keys.
+9. **Extract vs LiteDB** — `MarketApi` types still live in the download app that references LiteDB. A later step is to split EODHD extract models from the LiteDB library entirely. `{ClassName}Id` with no `[BsonId]` is the identity rule that makes that split possible.
 
 ---
 
@@ -487,7 +489,7 @@ These are factual characteristics of the current codebase; use them to plan impr
 Use this list when reviewing your own or others' changes:
 
 - [ ] Does the change respect layer boundaries (RestClient / provider / MarketApi / download orchestration / transform / statistics)?
-- [ ] Are new models dual-purpose ready (JSON names, BSON id, extract impact)?
+- [ ] Are new models dual-purpose ready (JSON names, `Id`/`{ClassName}Id` LiteDB key, extract impact)? No `[BsonId]`.
 - [ ] Are identities and date formats consistent with existing composite keys?
 - [ ] Are LiteDB writes transactional and idempotent (upsert)?
 - [ ] Are async APIs cancellable?
@@ -502,5 +504,5 @@ Use this list when reviewing your own or others' changes:
 ---
 
 **Last Updated:** August 30, 2026  
-**Version:** 1.3
+**Version:** 1.4
 )
