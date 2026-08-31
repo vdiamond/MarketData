@@ -8,8 +8,8 @@ namespace MarketApi
 {
     public class FundamentalEtf
     {
-        [BsonId]
-        public string ExchangeSymbolId {  get; set; }
+        [JsonPropertyName("FundamentalEtfId")]
+        public string FundamentalEtfId {  get; set; }
         [JsonPropertyName("General")]
         public GeneralEtf GeneralEtf { get; set; }
         [JsonPropertyName("Technicals")]

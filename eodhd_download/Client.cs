@@ -83,7 +83,7 @@ namespace EodNetApi
             {
                 throw new Exception("Error in deserializing FundamentalStock, response was null");
             }
-            ret.ExchangeSymbolId = exchangeSymbolId;
+            ret.FundamentalStockId = exchangeSymbolId;
             return ret;
         }
         public async Task<MarketApi.FundamentalEtf> GetFundamentalsEtfAsync(string exchangeSymbolId, CancellationToken ct = default)
@@ -100,7 +100,7 @@ namespace EodNetApi
             {
                 throw new Exception("Error in deserializing FundamentalEtf, response was null");
             }
-            ret.ExchangeSymbolId = exchangeSymbolId;
+            ret.FundamentalEtfId = exchangeSymbolId;
             return ret;
         }
         public async Task<MarketApi.FundamentalIndex> GetFundamentalsIndexAsync(string exchangeSymbolId, CancellationToken ct = default)
@@ -117,7 +117,7 @@ namespace EodNetApi
             {
                 throw new Exception("Error in deserializing FundamentalIndex, response was null");
             }
-            ret.ExchangeSymbolId = exchangeSymbolId;
+            ret.FundamentalIndexId = exchangeSymbolId;
             return ret;
         }
         public enum Period { Day, Week, Month  }

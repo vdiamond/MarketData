@@ -21,9 +21,10 @@ namespace MarketApi
         KZT, QAR, KWD, OMR, BHD, LYD, MAD, TND, JOD, BIF, MUR, AED, AFN, ALL, AMD, ANG, AOA,
         AWG, AZN, BAM, BBD, BDT, BMD, BND, BSD, PKR, SAR, NOK, ISK, PHP, ILS, ILA, Unknown
     }
+  
     public class Exchange
     {
-        [BsonId]
+        [JsonPropertyName("ExchangeId")]
         public string ExchangeId => Code;
         [JsonPropertyName("Name")]
         public string Name { get; set; }
@@ -42,7 +43,7 @@ namespace MarketApi
     }
     public class ExchangeSymbol
     {
-        [BsonId]
+        [JsonPropertyName("ExchangeSymbolId")]
         public string ExchangeSymbolId => $"{Symbol}.{Exchange}";
         [JsonPropertyName("Code")]
         public string Symbol { get; set; }
@@ -61,8 +62,8 @@ namespace MarketApi
     }
     public class HistoricalStockPrice
     {
-        [BsonId]
-        public string ExchangeSymbolIdDate => $"{ExchangeSymbolId}.{Date:yyyy-MM-dd}";
+        [JsonPropertyName("HistoricalStockPriceId")]
+        public string HistoricalStockPriceId => $"{ExchangeSymbolId}.{Date:yyyy-MM-dd}";
         [JsonPropertyName("exchangeSymbolId")]
         public string ExchangeSymbolId { get; set; }
         [JsonPropertyName("date")]
@@ -82,8 +83,8 @@ namespace MarketApi
     }
     public class SentimentsData
     {
-        [BsonId]
-        public string ExchangeSymbolIdDate => $"{ExchangeSymbolId}.{Date:yyyy-MM-dd}";
+        [JsonPropertyName("SentimentsDataId")]
+        public string SentimentsDataId => $"{ExchangeSymbolId}.{Date:yyyy-MM-dd}";
 
         [JsonPropertyName("exchangeSymbolId")]
         public string ExchangeSymbolId { get; set; }
@@ -97,8 +98,6 @@ namespace MarketApi
         [JsonPropertyName("normalized")]
         public double Normalized { get; set; }
     }
-
-
 
     public class MacroIndicator
     {
@@ -115,7 +114,6 @@ namespace MarketApi
         [JsonPropertyName("Value")]
         public double? Value { get; set; }
     }
-
     public class EconomicEvent
     {
         [JsonPropertyName("type")]
@@ -139,7 +137,6 @@ namespace MarketApi
         [JsonPropertyName("change_percentage")]
         public double? ChangePercentage { get; set; }
     }
-
     public class EarningsCalendarResponse
     {
         [JsonPropertyName("type")]
@@ -155,7 +152,6 @@ namespace MarketApi
         [JsonPropertyName("earnings")]
         public List<EarningsCalendarItem> Earnings { get; set; }
     }
-
     public class EarningsCalendarItem
     {
         [JsonPropertyName("code")]
@@ -179,7 +175,6 @@ namespace MarketApi
         [JsonPropertyName("period")]
         public string Period { get; set; }
     }
-
     public class IntradayBar
     {
         [JsonPropertyName("timestamp")]

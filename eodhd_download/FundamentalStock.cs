@@ -8,8 +8,8 @@ namespace MarketApi
 {
     public class FundamentalStock
     {
-        [BsonId]
-        public string ExchangeSymbolId { get; set; }
+        [JsonPropertyName("FundamentalStockId")]
+        public string FundamentalStockId { get; set; }
         [JsonPropertyName("General")]
         public GeneralStock GeneralStock { get; set; }
         [JsonPropertyName("Highlights")]

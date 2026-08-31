@@ -244,8 +244,9 @@ Paths and feature flags in `Main` are **environment-specific**; treat them as co
 
 Instruments are identified as **`{Symbol}.{Exchange}`** (e.g. `QQQ.US`, `GSPC.INDX`).
 
-- Primary keys for prices, sentiment, and fundamentals use this composite form.
-- LiteDB `[BsonId]` properties are often computed from component fields (e.g. `ExchangeSymbolIdDate => $"{ExchangeSymbolId}.{Date}"`).
+- Instrument identity stays `{Symbol}.{Exchange}`.
+- Each stored document has a type-specific JSON id (`ExchangeId`, `ExchangeSymbolId`, `FundamentalStockId`, `FundamentalEtfId`, `FundamentalIndexId`, `HistoricalStockPriceId`, `SentimentsDataId`) so EODHD extract models are not bound to LiteDB `[BsonId]`. Storage can assign LiteDB keys independently of the API DTO.
+- Price and sentiment document ids remain `{ExchangeSymbolId}.{Date}`.
 - When parsing symbols for column prefixes, expect exactly two segments; invalid formats should fail fast.
 
 ### Dual-purpose models
@@ -253,7 +254,7 @@ Instruments are identified as **`{Symbol}.{Exchange}`** (e.g. `QQQ.US`, `GSPC.IN
 `MarketApi` types:
 
 - Deserialize from EODHD JSON via `[JsonPropertyName(...)]`.
-- Persist to LiteDB via `[BsonId]` and collection mapping.
+- Persist to LiteDB via collection mapping. Document ids are JSON-named fields on the model, not `[BsonId]`, so extract from EODHD can split from LiteDB store.
 - Convert to tables via DynamicTable extensions (`ToTable()`).
 
 When adding a field, consider **all three** consumers (API JSON shape, storage identity/indexes, extract columns).
@@ -299,7 +300,7 @@ Load helpers in `Program` follow a consistent shape:
 
 1. Resolve LiteDB collection + ensure indexes.
 2. Call provider client (async).
-3. Stamp identity fields if needed (`ExchangeSymbolId`).
+3. Stamp type-specific identity fields if needed (`FundamentalStockId`, `FundamentalEtfId`, `FundamentalIndexId`).
 4. `BeginTrans` → `Upsert` → `Commit`; on failure `Rollback` and rethrow.
 5. Log timing / counts to the console.
 
@@ -439,16 +440,16 @@ For larger features:
 
 | Collection | Document type | Typical ID |
 |------------|---------------|------------|
-| `exchange_symbols` | `ExchangeSymbol` | `{Symbol}.{Exchange}` |
-| `fundamental_etfs` | `FundamentalEtf` | `ExchangeSymbolId` |
-| `fundamental_indices` | `FundamentalIndex` | `ExchangeSymbolId` |
-| `fundamental_stocks` | `FundamentalStock` | `ExchangeSymbolId` |
-| `historical_day_prices` | `HistoricalStockPrice` | `{ExchangeSymbolId}.{Date}` |
-| `sentiments_data` | `SentimentsData` | `{ExchangeSymbolId}.{Date}` |
+| `exchange_symbols` | `ExchangeSymbol` | `ExchangeSymbolId` (`{Symbol}.{Exchange}`) |
+| `fundamental_etfs` | `FundamentalEtf` | `FundamentalEtfId` |
+| `fundamental_indices` | `FundamentalIndex` | `FundamentalIndexId` |
+| `fundamental_stocks` | `FundamentalStock` | `FundamentalStockId` |
+| `historical_day_prices` | `HistoricalStockPrice` | `HistoricalStockPriceId` (`{ExchangeSymbolId}.{Date}`) |
+| `sentiments_data` | `SentimentsData` | `SentimentsDataId` (`{ExchangeSymbolId}.{Date}`) |
 
 When adding a collection:
 
-1. Define the model in `MarketApi` with a stable `[BsonId]`.
+1. Define the model in `MarketApi` with a stable type-specific JSON id. Do not put `[BsonId]` on the EODHD DTO if the store key will be assigned separately.
 2. Name the collection with clear, plural snake-ish names consistent with the table above.
 3. Ensure indexes for fields used in filters and joins.
 4. Document the collection in this catalog.
@@ -500,6 +501,6 @@ Use this list when reviewing your own or others' changes:
 
 ---
 
-**Last Updated:** August 2026  
-**Version:** 1.2
+**Last Updated:** August 30, 2026  
+**Version:** 1.3
 )

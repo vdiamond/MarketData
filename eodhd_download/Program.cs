@@ -54,7 +54,7 @@ namespace eodhd_download
                     var index = await eodHd.GetFundamentalsIndexAsync(exchangeSymbolId);
                     sw.Stop();
 
-                    index.ExchangeSymbolId = exchangeSymbolId;
+                    index.FundamentalIndexId = exchangeSymbolId;
 
                     sw.Restart();
                     db.BeginTrans();
@@ -62,7 +62,7 @@ namespace eodhd_download
                     db.Commit();
                     totalAffected++;
                     sw.Stop();
-                    Console.WriteLine($"Committed changes for FundamentalIndex {index.ExchangeSymbolId} in {sw.ElapsedMilliseconds} ms");
+                    Console.WriteLine($"Committed changes for FundamentalIndex {index.FundamentalIndexId} in {sw.ElapsedMilliseconds} ms");
                 }
                 catch
                 {
@@ -86,7 +86,7 @@ namespace eodhd_download
                     var etf = await eodHd.GetFundamentalsEtfAsync(exchangeSymbolId);
                     sw.Stop();
   
-                    etf.ExchangeSymbolId = exchangeSymbolId;
+                    etf.FundamentalEtfId = exchangeSymbolId;
  
                     sw.Restart();
                     db.BeginTrans();
@@ -94,7 +94,7 @@ namespace eodhd_download
                     db.Commit();
                     totalAffected++;
                     sw.Stop();
-                    Console.WriteLine($"Committed changes for FundamentalEtf {etf.ExchangeSymbolId} in {sw.ElapsedMilliseconds} ms");
+                    Console.WriteLine($"Committed changes for FundamentalEtf {etf.FundamentalEtfId} in {sw.ElapsedMilliseconds} ms");
                 }
                 catch
                 {
@@ -118,7 +118,7 @@ namespace eodhd_download
                     var stock = await eodHd.GetFundamentalsStockAsync(exchangeSymbolId);
                     sw.Stop();
 
-                    stock.ExchangeSymbolId = exchangeSymbolId;
+                    stock.FundamentalStockId = exchangeSymbolId;
 
                     sw.Restart();
                     db.BeginTrans();
@@ -126,7 +126,7 @@ namespace eodhd_download
                     db.Commit();
                     totalAffected++;
                     sw.Stop();
-                    Console.WriteLine($"Committed changes for FundamentalStock {stock.ExchangeSymbolId} in {sw.ElapsedMilliseconds} ms");
+                    Console.WriteLine($"Committed changes for FundamentalStock {stock.FundamentalStockId} in {sw.ElapsedMilliseconds} ms");
                 }
                 catch
                 {
@@ -217,7 +217,7 @@ namespace eodhd_download
                 if (exchangeSymbolIds.Count == 0) { return 0; }
 
                 var sentimentsDataColl = db.GetCollection<MarketApi.SentimentsData>("sentiments_data");
-                sentimentsDataColl.EnsureIndex("ExchangeSymbolId", x => x.ExchangeSymbolId, false);
+                sentimentsDataColl.EnsureIndex("SentimentsDataId", x => x.SentimentsDataId, false);
 
                 var sw = new Stopwatch();
 
@@ -347,17 +347,17 @@ namespace eodhd_download
             var spxSymbolsCsv = EnvOrDefault("MARKETDATA_SPX_SYMBOLS_CSV", @"D:\grokbot\SPX500_symbols.csv");
             var eventsCsv = EnvOrDefault("MARKETDATA_EVENTS_CSV", @"D:\grokbot\us_economic_events.csv");
             var eventTypesCsv = EnvOrDefault("MARKETDATA_EVENT_TYPES_CSV", @"D:\grokbot\us_economic_event_types.csv");
+            string ApiToken = EnvOrDefault("EODHD_API_TOKEN", "");
 
             var writeEventFlagsOnly = args.Any(a => string.Equals(a, "--write-event-flags", StringComparison.OrdinalIgnoreCase));
             if (writeEventFlagsOnly)
             {
-                var apiTokenOnly = Environment.GetEnvironmentVariable("EODHD_API_TOKEN");
-                if (string.IsNullOrWhiteSpace(apiTokenOnly))
+                if (string.IsNullOrWhiteSpace(ApiToken))
                 {
                     throw new InvalidOperationException(
                         "EODHD API token is not set. Set the EODHD_API_TOKEN environment variable before running.");
                 }
-                var eodHdEvents = new EodNetApi.Client(apiTokenOnly, timeout: 60000);
+                var eodHdEvents = new EodNetApi.Client(ApiToken, timeout: 60000);
                 await EventCalendar.WriteEventFlagsAsync(eodHdEvents, extractCsv, eventsCsv, eventTypesCsv);
                 return;
             }
@@ -470,14 +470,13 @@ namespace eodhd_download
 
             var db = new LiteDatabase(dbPath);
 
-            var apiToken = Environment.GetEnvironmentVariable("EODHD_API_TOKEN");
-            if (string.IsNullOrWhiteSpace(apiToken))
+            if (string.IsNullOrWhiteSpace(ApiToken))
             {
                 throw new InvalidOperationException(
                     "EODHD API token is not set. Set the EODHD_API_TOKEN environment variable before running.");
             }
 
-            var eodHdNew = new EodNetApi.Client(apiToken);
+            var eodHdNew = new EodNetApi.Client(ApiToken);
 
             if (DoLoadLookup)
             {

@@ -8,8 +8,8 @@ namespace MarketApi
 {
     public class FundamentalIndex
     {
-        [BsonId]
-        public string ExchangeSymbolId { get; set; }
+        [JsonPropertyName("FundamentalIndexId")]
+        public string FundamentalIndexId { get; set; }
         [JsonPropertyName("General")]
         public GeneralIndex GeneralIndex { get; set; }
         [JsonPropertyName("Components")]
